@@ -539,25 +539,27 @@ app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules', '
 // quindi Cloudflare, il browser o la WebView non possono servire file vecchi (Cloudflare porta
 // il Cache-Control di JS/CSS a 4 ore, ignorando quello dell'origine).
 const PUBLIC_DIR = path.join(__dirname, 'public');
-function computeBuildId() {
+function computeBuild() {
   const h = crypto.createHash('sha1');
+  let newest = 0;
   const walk = dir => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p);
-      else { h.update(path.relative(PUBLIC_DIR, p)); h.update(fs.readFileSync(p)); }
+      else { h.update(path.relative(PUBLIC_DIR, p)); h.update(fs.readFileSync(p)); newest = Math.max(newest, fs.statSync(p).mtimeMs); }
     }
   };
   walk(PUBLIC_DIR);
-  return h.digest('hex').slice(0, 10);
+  // builtAt = file più recente di public/: nel container è l'orario del deploy (git clone + COPY)
+  return { id: h.digest('hex').slice(0, 10), builtAt: new Date(newest).toISOString() };
 }
-const BUILD_ID = computeBuildId();
+const { id: BUILD_ID, builtAt: BUILT_AT } = computeBuild();
 
-const withBuildId = file => fs.readFileSync(path.join(PUBLIC_DIR, file), 'utf8').replaceAll('__BUILD_ID__', BUILD_ID);
+const withBuildId = file => fs.readFileSync(path.join(PUBLIC_DIR, file), 'utf8').replaceAll('__BUILD_ID__', BUILD_ID).replaceAll('__BUILD_TIME__', BUILT_AT);
 const INDEX_HTML = withBuildId('index.html');
 const SW_JS      = withBuildId('sw.js');
 
-app.get('/version.json', (req, res) => res.set('Cache-Control', 'no-store').json({ build: BUILD_ID }));
+app.get('/version.json', (req, res) => res.set('Cache-Control', 'no-store').json({ build: BUILD_ID, builtAt: BUILT_AT }));
 app.get(['/', '/index.html'], (req, res) =>
   res.set('Cache-Control', 'no-cache').type('html').send(INDEX_HTML));
 app.get('/sw.js', (req, res) =>

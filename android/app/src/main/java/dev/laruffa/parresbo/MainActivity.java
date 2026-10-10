@@ -250,7 +250,7 @@ public class MainActivity extends Activity {
         s.setTextZoom(100);
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         // La pagina riconosce l'app (niente pulsanti web ridondanti); la build debug attiva gli strumenti di debug
-        s.setUserAgentString(s.getUserAgentString() + " ParResBoApp" + (BuildConfig.DEBUG ? " ParResBoDebug" : ""));
+        s.setUserAgentString(s.getUserAgentString() + " ParResBoApp/" + BuildConfig.VERSION_NAME + (BuildConfig.DEBUG ? " ParResBoDebug" : ""));
 
         // Niente selezione/menu "Copia, Seleziona tutto…" con pressione prolungata
         webView.setLongClickable(false);

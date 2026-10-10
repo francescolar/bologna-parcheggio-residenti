@@ -13,6 +13,7 @@ const ZONE_COLORS = {
 function zoneColor(z) { return ZONE_COLORS[z] ?? '#64748b'; }
 
 const $ = id => document.getElementById(id);
+const streetLabel = s => s.label ?? s.descr;
 
 // Niente menu contestuale / selezione con pressione prolungata (comportamento da app)
 document.addEventListener('contextmenu', e => e.preventDefault());
@@ -24,6 +25,9 @@ let hiddenZones = new Set(JSON.parse(localStorage.getItem('hiddenZones') || '[]'
 
 const zoneLayers    = {};  // zone → L.layerGroup
 const zonePolylines = {};  // zone → [L.polyline]
+const streetPolylines = []; // [{ pl, zones }] per evidenziare la mia zona
+const DASH = 14;            // lunghezza dei tratti (px) per le vie a più zone
+const polylineStyle = mine => ({ weight: mine ? 6 : 3, opacity: mine ? 1 : 0.65 });
 let locationMarker  = null;
 
 // ── MAPPA ────────────────────────────────────────────────────────────────────
@@ -47,28 +51,32 @@ function render({ streets, stats }) {
 
   for (const s of streets) {
     if (!s.matched || !s.polylines.length) continue;
-    const z = s.zone;
-    zonesFound.add(z);
+    const isMyZ = !!myZone && s.zones.includes(myZone);
+    const tip   = `<b>${streetLabel(s)}</b><br>Zona: <b>${s.zones.join(', ')}</b>`;
+    const k     = s.zones.length;
 
-    if (!zoneLayers[z]) {
-      zoneLayers[z]    = L.layerGroup();
-      zonePolylines[z] = [];
-      if (!hiddenZones.has(z)) zoneLayers[z].addTo(map);
-    }
-
-    const color = zoneColor(z);
-    const isMyZ = myZone && s.zones.includes(myZone);
-    const tip   = `<b>${s.descr}</b><br>Zona: <b>${s.zones.join(', ')}</b>`;
-
-    for (const lls of s.polylines) {
-      const pl = L.polyline(lls, {
-        color,
-        weight:  isMyZ ? 6 : 3,
-        opacity: isMyZ ? 1 : 0.65,
-      }).bindTooltip(tip);
-      pl.addTo(zoneLayers[z]);
-      zonePolylines[z].push(pl);
-    }
+    // Una via con più zone (es. Corticella A+I) è disegnata in ciascuna delle sue zone, a tratti
+    // alternati nei colori delle zone: resta visibile finché almeno una delle sue zone è visibile.
+    s.zones.forEach((z, i) => {
+      zonesFound.add(z);
+      if (!zoneLayers[z]) {
+        zoneLayers[z]    = L.layerGroup();
+        zonePolylines[z] = [];
+        if (!hiddenZones.has(z)) zoneLayers[z].addTo(map);
+      }
+      const style = { color: zoneColor(z), ...polylineStyle(isMyZ) };
+      if (k > 1) {
+        style.dashArray = `${DASH},${DASH * (k - 1)}`;
+        style.dashOffset = String((k * DASH - i * DASH) % (k * DASH));
+        style.lineCap = 'butt';
+      }
+      for (const lls of s.polylines) {
+        const pl = L.polyline(lls, style).bindTooltip(tip);
+        pl.addTo(zoneLayers[z]);
+        zonePolylines[z].push(pl);
+        streetPolylines.push({ pl, zones: s.zones });
+      }
+    });
   }
 
   const sorted = [...zonesFound].sort(zoneSortFn);
@@ -168,12 +176,7 @@ function setMyZone(zone) {
   syncSettings();
   const sel = $('zone-select');
   if (sel) sel.value = zone;
-  for (const [z, lines] of Object.entries(zonePolylines)) {
-    const isMyZ = zone !== '' && z === zone;
-    for (const pl of lines) {
-      pl.setStyle({ weight: isMyZ ? 6 : 3, opacity: isMyZ ? 1 : 0.65 });
-    }
-  }
+  for (const { pl, zones } of streetPolylines) pl.setStyle(polylineStyle(zone !== '' && zones.includes(zone)));
 }
 
 // ── GEOLOCALIZZAZIONE ─────────────────────────────────────────────────────────
@@ -225,7 +228,6 @@ function onPosition({ coords: { latitude: lat, longitude: lng } }) {
   showPositionResult(lat, lng);
 }
 
-const streetLabel = s => s.label ?? s.descr;
 const fmtDist = m => m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`;
 let parkingMarker = null;
 
@@ -363,7 +365,8 @@ function buildSettings(zones, stats, streets) {
       <h3>Informazioni</h3>
       <p class="set-help">Zone e strade: open data del Comune di Bologna.<br>
         Mappa e geometrie: © OpenStreetMap contributors.<br>
-        Versione: ${PAGE_BUILD || '–'}</p>
+        Versione: <b>${PAGE_BUILD || '–'}</b>${PAGE_BUILD_TIME ? ` · ${fmtBuildTime(PAGE_BUILD_TIME)}` : ''}${APP_VERSION ? `<br>App Android: <b>${APP_VERSION}</b>` : ''}</p>
+      <p id="set-update-status" class="set-status"></p>
       <button id="set-update">Aggiorna app (svuota la cache)</button>
       <button id="set-reset" class="set-danger">Ripristina impostazioni</button>
     </section>`;
@@ -405,6 +408,7 @@ function syncSettings() {
 
 function showView(name) {
   dismissVerdict();
+  if (name === 'settings') refreshUpdateStatus();
   $('settings').style.display = name === 'settings' ? 'flex' : 'none';
 }
 window.ParResBo = { showView };
@@ -497,6 +501,30 @@ async function main() {
 // Ogni pagina porta il proprio BUILD_ID (meta "build"). Se il server ne ha uno diverso la pagina è
 // vecchia (cache): si svuotano cache e service worker e si ricarica, una sola volta per versione.
 const PAGE_BUILD = document.querySelector('meta[name="build"]')?.content ?? '';
+const PAGE_BUILD_TIME = document.querySelector('meta[name="build-time"]')?.content ?? '';
+const APP_VERSION = navigator.userAgent.match(/ParResBoApp\/([\w.]+)/)?.[1] ?? '';
+const fmtBuildTime = iso => new Date(iso).toLocaleString('it-IT',
+  { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// Confronta la versione di questa pagina con quella pubblicata sul server (/version.json)
+async function refreshUpdateStatus() {
+  const el = $('set-update-status');
+  if (!el) return;
+  el.className = 'set-status';
+  el.textContent = 'Controllo aggiornamenti…';
+  try {
+    const v = await (await fetch('/version.json', { cache: 'no-store' })).json();
+    if (v.build === PAGE_BUILD) {
+      el.classList.add('set-ok');
+      el.textContent = '✓ Aggiornata: è l’ultima versione pubblicata';
+    } else {
+      el.classList.add('set-old');
+      el.textContent = `⚠ Disponibile una versione più recente (${v.build}, ${fmtBuildTime(v.builtAt)}). Tocca “Aggiorna app”.`;
+    }
+  } catch {
+    el.textContent = 'Impossibile controllare gli aggiornamenti (sei offline?)';
+  }
+}
 
 async function hardRefresh() {
   try {

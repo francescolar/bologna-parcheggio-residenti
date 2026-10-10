@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="build" content="__BUILD_ID__">
   <meta name="theme-color" content="#c8102e">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>ParResBo – Zone parcheggio residenti Bologna</title>
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=__BUILD_ID__">
 </head>
 <body>
 
@@ -31,8 +32,6 @@
   <div id="legend-items"></div>
 </div>
 
-<div id="stats"></div>
-
 <button id="locate-btn" style="display:none">
   <span class="locate-icon">◎</span> Posso parcheggiare qui?
 </button>
@@ -44,25 +43,17 @@
 <button id="settings-fab" aria-label="Impostazioni" style="display:none">⚙</button>
 
 <div id="settings" style="display:none">
-  <header>
-    <h2>Impostazioni</h2>
-    <button class="settings-close" id="settings-close" aria-label="Chiudi">✕</button>
-  </header>
-  <div id="settings-body"></div>
-</div>
-
-<button id="unmatched-btn" style="display:none"></button>
-
-<div id="unmatched-panel" style="display:none">
-  <div id="unmatched-header">
-    <h3>Strade non trovate su OSM</h3>
-    <button id="unmatched-close">✕</button>
+  <div class="settings-card">
+    <header>
+      <h2>Impostazioni</h2>
+      <button class="settings-close" id="settings-close" aria-label="Chiudi">✕</button>
+    </header>
+    <div id="settings-body"></div>
   </div>
-  <ul id="unmatched-list"></ul>
 </div>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
-<script src="/geo.js"></script>
-<script src="/app.js"></script>
+<script src="/geo.js?v=__BUILD_ID__"></script>
+<script src="/app.js?v=__BUILD_ID__"></script>
 </body>
 </html>

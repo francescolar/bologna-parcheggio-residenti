@@ -4,7 +4,7 @@ const test   = require('node:test');
 const assert = require('node:assert/strict');
 const zlib   = require('node:zlib');
 const http   = require('node:http');
-const { app, _setCache } = require('../server');
+const { app, BUILD_ID, _setCache } = require('../server');
 
 let server, base;
 test.before(async () => {
@@ -25,7 +25,7 @@ test('/healthz risponde 200 anche prima che i dati siano pronti', async () => {
   _setCache(null);
   const r = await fetch(`${base}/healthz`);
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, ready: false });
+  assert.deepEqual(await r.json(), { ok: true, ready: false, build: BUILD_ID });
 });
 
 test('/api/streets durante il caricamento → 503 con Retry-After (senza lanciare fetch reali)', async () => {

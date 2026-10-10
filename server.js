@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto      = require('crypto');
 const express     = require('express');
 const compression = require('compression');
 const fs       = require('fs');
@@ -531,10 +532,46 @@ app.use(compression());
 
 // Leaflet servito in locale (niente CDN → l'app funziona anche offline via service worker)
 app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet', 'dist')));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// ── VERSIONE DEL FRONTEND ────────────────────────────────────────────────────
+// BUILD_ID = hash del contenuto di public/: cambia da solo a ogni deploy che modifica i file.
+// Serve a invalidare le cache: gli URL di JS/CSS nell'HTML e la cache del service worker lo contengono,
+// quindi Cloudflare, il browser o la WebView non possono servire file vecchi (Cloudflare porta
+// il Cache-Control di JS/CSS a 4 ore, ignorando quello dell'origine).
+const PUBLIC_DIR = path.join(__dirname, 'public');
+function computeBuildId() {
+  const h = crypto.createHash('sha1');
+  const walk = dir => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else { h.update(path.relative(PUBLIC_DIR, p)); h.update(fs.readFileSync(p)); }
+    }
+  };
+  walk(PUBLIC_DIR);
+  return h.digest('hex').slice(0, 10);
+}
+const BUILD_ID = computeBuildId();
+
+const withBuildId = file => fs.readFileSync(path.join(PUBLIC_DIR, file), 'utf8').replaceAll('__BUILD_ID__', BUILD_ID);
+const INDEX_HTML = withBuildId('index.html');
+const SW_JS      = withBuildId('sw.js');
+
+app.get('/version.json', (req, res) => res.set('Cache-Control', 'no-store').json({ build: BUILD_ID }));
+app.get(['/', '/index.html'], (req, res) =>
+  res.set('Cache-Control', 'no-cache').type('html').send(INDEX_HTML));
+app.get('/sw.js', (req, res) =>
+  res.set('Cache-Control', 'no-cache').type('application/javascript').send(SW_JS));
+
+app.use(express.static(PUBLIC_DIR, {
+  setHeaders(res, file) {
+    // Codice dell'app: sempre da riconvalidare (ETag). Il resto (icone) può stare in cache.
+    if (/\.(html|js|css|webmanifest)$/.test(file)) res.set('Cache-Control', 'no-cache');
+  },
+}));
 
 // Healthcheck: risponde subito anche mentre i dati sono ancora in caricamento
-app.get('/healthz', (req, res) => res.json({ ok: true, ready: !!memCache }));
+app.get('/healthz', (req, res) => res.json({ ok: true, ready: !!memCache, build: BUILD_ID }));
 
 app.get('/api/streets', async (req, res) => {
   if (!memCache) {
@@ -543,7 +580,7 @@ app.get('/api/streets', async (req, res) => {
     getData().catch(err => console.error('Caricamento dati fallito:', err.message));
     return res.status(503).set('Retry-After', '5').json({ loading: true });
   }
-  res.json(memCache);
+  res.set('Cache-Control', 'no-cache').json(memCache);
 });
 
 const PORT = process.env.PORT ?? 3000;
@@ -556,6 +593,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  app, normalizeKey, titleCase, parseCandidates, processStreets,
+  app, BUILD_ID, normalizeKey, titleCase, parseCandidates, processStreets,
   _setCache: data => { memCache = data; },
 };

@@ -4,7 +4,7 @@ const test   = require('node:test');
 const assert = require('node:assert/strict');
 const fs     = require('node:fs');
 const path   = require('node:path');
-const { app } = require('../server');
+const { app, BUILD_ID } = require('../server');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const manifest = JSON.parse(fs.readFileSync(path.join(PUBLIC, 'manifest.webmanifest'), 'utf8'));
@@ -65,7 +65,7 @@ test('il service worker è servito e precarica solo file esistenti', async () =>
 test('index.html contiene verdetto, impostazioni e carica geo.js prima di app.js', () => {
   assert.match(html, /id="verdict"/);
   assert.match(html, /id="settings"/);
-  assert.match(html, /<script src="\/geo\.js"><\/script>\s*<script src="\/app\.js"><\/script>/);
+  assert.match(html, /<script src="\/geo\.js\?v=__BUILD_ID__"><\/script>\s*<script src="\/app\.js\?v=__BUILD_ID__"><\/script>/);
   assert.match(html, /Posso parcheggiare qui\?/);
   assert.match(html, /id="legend" class="collapsed"/);   // legenda collassata di default
 });
@@ -81,4 +81,36 @@ test('app.js e geo.js sono sintatticamente validi', () => {
   for (const f of ['app.js', 'geo.js', 'sw.js']) {
     assert.doesNotThrow(() => new vm.Script(fs.readFileSync(path.join(PUBLIC, f), 'utf8'), { filename: f }), f);
   }
+});
+
+test('versionamento: /version.json, meta build, URL di JS/CSS e service worker portano lo stesso BUILD_ID', async () => {
+  assert.match(BUILD_ID, /^[0-9a-f]{10}$/);
+
+  const v = await fetch(`${base}/version.json`);
+  assert.equal(v.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await v.json(), { build: BUILD_ID });
+
+  const page = await fetch(`${base}/`);
+  assert.equal(page.headers.get('cache-control'), 'no-cache');
+  const body = await page.text();
+  assert.ok(body.includes(`<meta name="build" content="${BUILD_ID}">`));
+  for (const f of ['style.css', 'geo.js', 'app.js']) assert.ok(body.includes(`/${f}?v=${BUILD_ID}`), f);
+  assert.ok(!body.includes('__BUILD_ID__'));
+
+  const sw = await (await fetch(`${base}/sw.js`)).text();
+  assert.ok(sw.includes(`'parresbo-${BUILD_ID}'`));
+  assert.ok(!sw.includes('__BUILD_ID__'));
+});
+
+test('JS/CSS dell’app sono sempre da riconvalidare (no-cache), le icone no', async () => {
+  for (const f of ['/app.js', '/style.css', '/geo.js', '/manifest.webmanifest']) {
+    assert.equal((await fetch(base + f)).headers.get('cache-control'), 'no-cache', f);
+  }
+  assert.notEqual((await fetch(`${base}/icons/icon-192.png`)).headers.get('cache-control'), 'no-cache');
+});
+
+test('i file con ?v=… vengono serviti (il parametro è solo per invalidare le cache)', async () => {
+  const r = await fetch(`${base}/app.js?v=${BUILD_ID}`);
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /checkBuild/);
 });

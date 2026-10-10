@@ -73,9 +73,7 @@ function render({ streets, stats }) {
 
   const sorted = [...zonesFound].sort(zoneSortFn);
   buildLegend(sorted);
-  buildSettings(sorted, stats);
-  buildStats(stats);
-  buildUnmatchedPanel(streets);
+  buildSettings(sorted, stats, streets);
   $('loading').style.display = 'none';
 }
 
@@ -258,28 +256,45 @@ function showPositionResult(lat, lng) {
   showVerdict({ ok: false, title: 'NO!', street, sub: `Non è la tua zona (${zones}) · la tua è ${myZone}`, target });
 }
 
+const VERDICT_MS = 5000;
+let verdictTimer = null;
+
 function showVerdict({ ok, title, street, sub, target }) {
   const el = $('verdict');
   el.className = 'verdict ' + (ok ? 'verdict-yes' : 'verdict-no');
   el.innerHTML = `
-    <button class="verdict-close" aria-label="chiudi">✕</button>
     <div class="verdict-big">${title}</div>
     <div class="verdict-street">${streetLabel(street)}</div>
     <div class="verdict-sub">${sub}</div>
     ${target ? `<button class="verdict-nav">Vuoi andare al parcheggio più vicino?
-      <small>${streetLabel(target.street)} · ${fmtDist(target.distM)}</small></button>` : ''}`;
+      <small>${streetLabel(target.street)} · ${fmtDist(target.distM)}</small></button>` : ''}
+    <div class="verdict-timer"></div>`;
   el.style.display = 'flex';
-  el.querySelector('.verdict-close').onclick = hideVerdict;
+  // Si chiude toccando un punto qualsiasi, oppure da solo dopo 5 secondi
+  el.onclick = dismissVerdict;
+  clearTimeout(verdictTimer);
+  verdictTimer = setTimeout(dismissVerdict, VERDICT_MS);
   if (target) {
     parkingMarker = L.marker([target.lat, target.lng], {
       icon: L.divIcon({ className: 'parking-pin', html: 'P', iconSize: [30, 30], iconAnchor: [15, 15] }),
     }).addTo(map);
-    el.querySelector('.verdict-nav').onclick = () => openNavigation(target);
+    el.querySelector('.verdict-nav').onclick = e => {
+      e.stopPropagation();
+      dismissVerdict();
+      openNavigation(target);
+    };
   }
 }
 
-function hideVerdict() {
+// Chiude il verdetto ma lascia sulla mappa il pin del parcheggio più vicino
+function dismissVerdict() {
+  clearTimeout(verdictTimer);
   $('verdict').style.display = 'none';
+}
+
+// Chiude il verdetto e toglie anche il pin (nuovo controllo, cambio modalità)
+function hideVerdict() {
+  dismissVerdict();
   if (parkingMarker) { parkingMarker.remove(); parkingMarker = null; }
 }
 
@@ -299,30 +314,6 @@ function showLocateResult(html, type) {
   el.querySelector('.res-close').onclick = () => { el.style.display = 'none'; };
 }
 
-// ── STATS ────────────────────────────────────────────────────────────────────
-function buildStats({ matched, total }) {
-  const pct = Math.round(100 * matched / total);
-  $('stats').textContent = `Strade trovate: ${matched}/${total} (${pct}%)`;
-  $('stats').style.display = 'block';
-}
-
-// ── PANNELLO STRADE NON TROVATE ───────────────────────────────────────────────
-function buildUnmatchedPanel(streets) {
-  const notFound = streets.filter(s => !s.matched).sort((a, b) => a.descr.localeCompare(b.descr));
-  if (!notFound.length) return;
-  const btn = $('unmatched-btn');
-  btn.textContent = `${notFound.length} strade non trovate →`;
-  btn.style.display = 'block';
-  const list = $('unmatched-list');
-  for (const s of notFound) {
-    list.insertAdjacentHTML('beforeend',
-      `<li>${s.descr} <span>[${s.zones.join(',')}]</span></li>`);
-  }
-  btn.onclick = () => $('unmatched-panel').classList.add('open');
-  $('unmatched-close').onclick = () => $('unmatched-panel').classList.remove('open');
-  $('unmatched-panel').style.display = null;
-}
-
 // ── IMPOSTAZIONI ──────────────────────────────────────────────────────────────
 // Vista a pieno schermo dentro la pagina. Nell'app Android la apre la barra nativa
 // (window.ParResBo.showView); sul web si apre dal pulsante ⚙.
@@ -332,8 +323,9 @@ document.documentElement.classList.toggle('in-app', IN_APP);
 const zoneName = z => z === 'MISTA' ? 'Zone miste' : `Zona ${z}`;
 let settingsZones = [];
 
-function buildSettings(zones, stats) {
+function buildSettings(zones, stats, streets) {
   settingsZones = zones;
+  const notFound = streets.filter(s => !s.matched).sort((x, y) => (x.label ?? x.descr).localeCompare(y.label ?? y.descr));
   $('settings-body').innerHTML = `
     <section>
       <h3>La mia zona</h3>
@@ -360,10 +352,19 @@ function buildSettings(zones, stats) {
       </div>
     </section>
     <section>
+      <h3>Dati</h3>
+      <p class="set-help">Strade trovate sulla mappa: <b>${stats.matched}/${stats.total}</b> (${Math.round(100 * stats.matched / stats.total)}%)</p>
+      ${notFound.length ? `<details id="set-unmatched">
+        <summary>Strade non trovate (${notFound.length})</summary>
+        <ul>${notFound.map(s => `<li>${s.label ?? s.descr} <span>[${s.zones.join(', ')}]</span></li>`).join('')}</ul>
+      </details>` : ''}
+    </section>
+    <section>
       <h3>Informazioni</h3>
       <p class="set-help">Zone e strade: open data del Comune di Bologna.<br>
         Mappa e geometrie: © OpenStreetMap contributors.<br>
-        Strade abbinate: ${stats.matched}/${stats.total}.</p>
+        Versione: ${PAGE_BUILD || '–'}</p>
+      <button id="set-update">Aggiorna app (svuota la cache)</button>
       <button id="set-reset" class="set-danger">Ripristina impostazioni</button>
     </section>`;
 
@@ -378,6 +379,7 @@ function buildSettings(zones, stats) {
     if (!myZone) { $('set-my-zone').focus(); return; }
     settingsZones.forEach(z => setZoneVisible(z, z === myZone));
   };
+  $('set-update').onclick = hardRefresh;
   $('set-reset').onclick = () => {
     const b = $('set-reset');
     if (!b.dataset.armed) {            // niente confirm(): nella WebView non si vedrebbe
@@ -402,12 +404,14 @@ function syncSettings() {
 }
 
 function showView(name) {
+  dismissVerdict();
   $('settings').style.display = name === 'settings' ? 'flex' : 'none';
 }
 window.ParResBo = { showView };
 
 $('settings-fab').addEventListener('click', () => showView('settings'));
 $('settings-close').addEventListener('click', () => showView('map'));
+$('settings').addEventListener('click', e => { if (e.target === $('settings')) showView('map'); });  // clic fuori dalla scheda
 if (!IN_APP) $('settings-fab').style.display = 'block';
 
 // ── DEBUG: POSIZIONE SIMULATA ─────────────────────────────────────────────────
@@ -488,6 +492,31 @@ async function main() {
     console.error(err);
   }
 }
+
+// ── VERSIONE / AGGIORNAMENTO ──────────────────────────────────────────────────
+// Ogni pagina porta il proprio BUILD_ID (meta "build"). Se il server ne ha uno diverso la pagina è
+// vecchia (cache): si svuotano cache e service worker e si ricarica, una sola volta per versione.
+const PAGE_BUILD = document.querySelector('meta[name="build"]')?.content ?? '';
+
+async function hardRefresh() {
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+    await Promise.all(regs.map(r => r.unregister()));
+    await Promise.all((await caches.keys()).map(k => caches.delete(k)));
+  } catch (err) { console.warn('Pulizia cache non riuscita:', err); }
+  location.reload();
+}
+
+async function checkBuild() {
+  try {
+    const { build } = await (await fetch('/version.json', { cache: 'no-store' })).json();
+    if (build && PAGE_BUILD && build !== PAGE_BUILD && sessionStorage.getItem('refreshedFor') !== build) {
+      sessionStorage.setItem('refreshedFor', build);
+      await hardRefresh();
+    }
+  } catch { /* offline: si usa quello che c'è */ }
+}
+checkBuild();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(err => console.warn('Service worker non registrato:', err));

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parcheggio Residenti Bologna – Zone</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div id="loading">
+  <h2>Parcheggio Residenti Bologna</h2>
+  <div class="bar-wrap"><div class="bar-fill" id="bar"></div></div>
+  <div id="prog-text">Avvio…</div>
+</div>
+
+<div id="map"></div>
+
+<div id="legend">
+  <h3>Zone parcheggio</h3>
+  <div id="legend-items"></div>
+</div>
+
+<div id="stats"></div>
+
+<button id="locate-btn" style="display:none">
+  <span class="locate-icon">◎</span> Dove sono?
+</button>
+
+<div id="locate-result" style="display:none"></div>
+
+<button id="unmatched-btn" style="display:none"></button>
+
+<div id="unmatched-panel" style="display:none">
+  <div id="unmatched-header">
+    <h3>Strade non trovate su OSM</h3>
+    <button id="unmatched-close">✕</button>
+  </div>
+  <ul id="unmatched-list"></ul>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

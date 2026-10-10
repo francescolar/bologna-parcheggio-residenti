@@ -35,33 +35,10 @@ COPY . .
 # Punta all'SDK installato
 RUN echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-# Genera icone PNG con solo Python stdlib (nessuna dipendenza extra)
-RUN python3 - <<'EOF'
-import struct, zlib, os
+# Le icone (mipmap-*) sono già nel repo, generate da public/icons/icon.svg
 
-def png(w, h, r, g, b):
-    raw = bytes([0] + [r, g, b] * w) * h
-    cmp = zlib.compress(raw)
-    def chunk(name, data):
-        c = name + data
-        return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
-    ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
-    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', cmp) + chunk(b'IEND', b'')
-
-sizes = [(48,'mipmap-mdpi'), (72,'mipmap-hdpi'), (96,'mipmap-xhdpi'),
-         (144,'mipmap-xxhdpi'), (192,'mipmap-xxxhdpi')]
-for size, folder in sizes:
-    out = f'app/src/main/res/{folder}'
-    os.makedirs(out, exist_ok=True)
-    with open(f'{out}/ic_launcher.png', 'wb') as f:
-        f.write(png(size, size, 29, 78, 216))   # #1d4ed8
-    with open(f'{out}/ic_launcher_round.png', 'wb') as f:
-        f.write(png(size, size, 29, 78, 216))
-print('Icone generate')
-EOF
-
-# Build APK debug (non serve firma per installazione con "Origini sconosciute")
-RUN gradle assembleDebug --no-daemon 2>&1 | tail -30
+# Build APK debug (firmato con la chiave debug automatica di Android: installabile via sideload)
+RUN gradle assembleDebug --no-daemon --console=plain
 
 # Copia APK finale in /output (volume mount)
 CMD ["sh", "-c", \

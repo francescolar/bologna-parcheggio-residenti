@@ -65,14 +65,14 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   padding: 11px 22px; border-radius: 99px;
   font-size: 14px; font-weight: 600;
   border: none; cursor: pointer;
-  box-shadow: 0 4px 16px rgba(29,78,216,.35);
+  box-shadow: 0 4px 16px rgba(200,16,46,.35);
   z-index: 1000; white-space: nowrap;
   transition: background .15s, box-shadow .15s;
   touch-action: manipulation;
 }
-#locate-btn:hover  { background: #1e40af; }
-#locate-btn:active { background: #1e3a8a; box-shadow: 0 2px 8px rgba(29,78,216,.3); }
-#locate-btn:disabled { background: #93c5fd; cursor: default; box-shadow: none; }
+#locate-btn:hover  { background: #a30d25; }
+#locate-btn:active { background: #8a0b1f; box-shadow: 0 2px 8px rgba(200,16,46,.3); }
+#locate-btn:disabled { background: #e8909f; cursor: default; box-shadow: none; }
 .locate-icon { font-size: 16px; }
 
 /* ── TOAST RISULTATO POSIZIONE ── */
@@ -136,3 +136,18 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   border-bottom: 1px solid #f8fafc;
 }
 #unmatched-list li span { color: #94a3b8; }
+
+/* ── DEBUG: posizione simulata ── */
+#debug-panel {
+  position: fixed; top: 80px; left: 10px; z-index: 1000;
+  background: #fff7ed; border: 1.5px solid #fdba74; color: #7c2d12;
+  padding: 8px 12px; border-radius: 10px; font-size: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.14);
+}
+#debug-panel label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+#debug-hint { font-size: 11px; opacity: .8; }
+.sim-dot {
+  background: #f97316; border: 3px solid #fff; border-radius: 50%;
+  box-shadow: 0 0 0 2px #f97316, 0 2px 6px rgba(0,0,0,.4);
+}

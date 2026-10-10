@@ -160,6 +160,15 @@ function setupLocateBtn() {
   const btn = $('locate-btn');
   btn.style.display = 'flex';
   btn.addEventListener('click', () => {
+    if (DEBUG && simMode) {
+      if (simMarker) {
+        const { lat, lng } = simMarker.getLatLng();
+        showPositionResult(lat, lng);
+      } else {
+        showLocateResult('Tocca la mappa per posizionare il puntino.', 'neutral');
+      }
+      return;
+    }
     if (!navigator.geolocation) {
       showLocateResult('Geolocalizzazione non supportata dal browser.', 'neutral');
       return;
@@ -189,7 +198,11 @@ function onPosition({ coords: { latitude: lat, longitude: lng } }) {
     fillColor: '#3b82f6', fillOpacity: 0.9,
   }).bindTooltip('La tua posizione').addTo(map);
   map.setView([lat, lng], 16);
+  showPositionResult(lat, lng);
+}
 
+// Mostra a quale zona appartiene la via più vicina a (lat, lng) e se ci si può parcheggiare
+function showPositionResult(lat, lng) {
   const result = findNearestStreet(lat, lng);
   if (!result) {
     showLocateResult('Nessuna strada trovata nelle vicinanze.', 'neutral');
@@ -279,6 +292,50 @@ function buildUnmatchedPanel(streets) {
   $('unmatched-panel').style.display = null;
 }
 
+// ── DEBUG: POSIZIONE SIMULATA ─────────────────────────────────────────────────
+// Attivo con ?debug=1 oppure nella build debug dell'app Android (User-Agent "ParResBoDebug").
+// Permette di scegliere tra GPS reale e un puntino trascinabile sulla mappa.
+const DEBUG = /[?&]debug=1\b/.test(location.search) || navigator.userAgent.includes('ParResBoDebug');
+let simMode   = false;
+let simMarker = null;
+
+function placeSimMarker(lat, lng) {
+  if (!simMarker) {
+    simMarker = L.marker([lat, lng], {
+      draggable: true,
+      icon: L.divIcon({ className: 'sim-dot', iconSize: [22, 22], iconAnchor: [11, 11] }),
+    }).addTo(map);
+    simMarker.on('dragend', () => {
+      const p = simMarker.getLatLng();
+      showPositionResult(p.lat, p.lng);
+    });
+  } else {
+    simMarker.setLatLng([lat, lng]);
+  }
+  showPositionResult(lat, lng);
+}
+
+function setupDebugPanel() {
+  if (!DEBUG) return;
+  const panel = document.createElement('div');
+  panel.id = 'debug-panel';
+  panel.innerHTML = `
+    <b>DEBUG</b> posizione
+    <label><input type="radio" name="posmode" value="gps" checked> GPS reale</label>
+    <label><input type="radio" name="posmode" value="sim"> Simulata</label>
+    <div id="debug-hint" style="display:none">Tocca la mappa o trascina il puntino</div>`;
+  document.body.appendChild(panel);
+
+  panel.addEventListener('change', e => {
+    simMode = e.target.value === 'sim';
+    $('debug-hint').style.display = simMode ? 'block' : 'none';
+    if (locationMarker) { locationMarker.remove(); locationMarker = null; }
+    if (!simMode && simMarker) { simMarker.remove(); simMarker = null; }
+    $('locate-result').style.display = 'none';
+  });
+  map.on('click', e => { if (simMode) placeSimMarker(e.latlng.lat, e.latlng.lng); });
+}
+
 // ── MAIN ─────────────────────────────────────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -306,6 +363,7 @@ async function main() {
     setProgress(95, 'Disegno polilinee…');
     render(data);
     setupLocateBtn();
+    setupDebugPanel();
   } catch (err) {
     $('prog-text').textContent = 'Errore: ' + err.message;
     console.error(err);

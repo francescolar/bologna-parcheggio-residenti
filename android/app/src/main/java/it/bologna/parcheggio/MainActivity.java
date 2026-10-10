@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -44,33 +45,38 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        // Bottone ⚙ in alto a destra per cambiare server
-        Button settingsBtn = new Button(this);
-        settingsBtn.setText("⚙");
-        settingsBtn.setTextSize(18f);
-        settingsBtn.setTextColor(Color.WHITE);
-        settingsBtn.setBackgroundColor(Color.argb(180, 0, 0, 0));
-        settingsBtn.setPadding(20, 8, 20, 8);
-        settingsBtn.setOnClickListener(v -> showUrlDialog());
-        int dp8 = dp(8);
-        FrameLayout.LayoutParams btnParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        btnParams.gravity = Gravity.TOP | Gravity.END;
-        btnParams.topMargin = dp8;
-        btnParams.rightMargin = dp8;
-        root.addView(settingsBtn, btnParams);
+        // Solo build debug: bottone ⚙ per puntare a un server diverso (es. locale)
+        if (BuildConfig.DEBUG) {
+            Button settingsBtn = new Button(this);
+            settingsBtn.setText("⚙");
+            settingsBtn.setTextSize(18f);
+            settingsBtn.setTextColor(Color.WHITE);
+            settingsBtn.setBackgroundColor(Color.argb(180, 0, 0, 0));
+            settingsBtn.setPadding(20, 8, 20, 8);
+            settingsBtn.setOnClickListener(v -> showUrlDialog());
+            int dp8 = dp(8);
+            FrameLayout.LayoutParams btnParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            );
+            btnParams.gravity = Gravity.BOTTOM | Gravity.START;
+            btnParams.bottomMargin = dp8;
+            btnParams.leftMargin = dp8;
+            root.addView(settingsBtn, btnParams);
+        }
 
         setContentView(root);
 
-        SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String url = prefs.getString(KEY_URL, null);
-        if (url == null) {
-            showUrlDialog();
-        } else {
-            loadUrl(url);
+        loadUrl(baseUrl());
+    }
+
+    /** URL del server: fisso in release, sovrascrivibile (⚙) nella build debug. */
+    private String baseUrl() {
+        if (BuildConfig.DEBUG) {
+            return getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_URL, BuildConfig.BASE_URL);
         }
+        return BuildConfig.BASE_URL;
     }
 
     private void setupWebView() {
@@ -80,8 +86,12 @@ public class MainActivity extends Activity {
         s.setGeolocationEnabled(true);
         s.setDatabaseEnabled(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        s.setMixedContentMode(BuildConfig.DEBUG
+            ? WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            : WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
+        // La pagina web attiva gli strumenti di debug (posizione simulata) solo nella build debug
+        if (BuildConfig.DEBUG) s.setUserAgentString(s.getUserAgentString() + " ParResBoDebug");
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -102,19 +112,18 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                // Blocca qualsiasi navigazione fuori dal server configurato
-                SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-                String base = prefs.getString(KEY_URL, "");
-                String target = request.getUrl().toString();
-                if (!base.isEmpty() && target.startsWith(base)) {
-                    return false; // lascia caricare
-                }
-                return true; // blocca
+                // Naviga solo dentro il server configurato (stesso host), blocca il resto
+                String host = Uri.parse(baseUrl()).getHost();
+                return host == null || !host.equalsIgnoreCase(request.getUrl().getHost());
             }
 
             @Override
-            public void onReceivedError(WebView view, int code, String desc, String url) {
-                showUrlDialog();
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                // Solo la pagina principale: i tile della mappa che falliscono non devono interrompere l'app
+                if (!request.isForMainFrame()) return;
+                Toast.makeText(MainActivity.this,
+                    "Impossibile raggiungere il server. Riprova tra poco.", Toast.LENGTH_LONG).show();
+                if (BuildConfig.DEBUG) showUrlDialog();
             }
         });
     }
@@ -125,7 +134,7 @@ public class MainActivity extends Activity {
 
     private void showUrlDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String current = prefs.getString(KEY_URL, "http://192.168.1.x:3000");
+        String current = prefs.getString(KEY_URL, BuildConfig.BASE_URL);
 
         EditText input = new EditText(this);
         input.setText(current);
@@ -137,8 +146,8 @@ public class MainActivity extends Activity {
         layout.addView(input);
 
         new AlertDialog.Builder(this)
-            .setTitle("Server Docker")
-            .setMessage("Indirizzo IP e porta del server (stesso WiFi)")
+            .setTitle("Server (debug)")
+            .setMessage("URL del server, es. http://192.168.1.x:3000")
             .setView(layout)
             .setPositiveButton("Connetti", (d, w) -> {
                 String url = input.getText().toString().trim().replaceAll("/$", "");

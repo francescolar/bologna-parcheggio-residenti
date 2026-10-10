@@ -555,7 +555,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Il server risponde 503 {loading:true} finché non ha finito il download iniziale (Overpass)
 async function fetchStreets() {
   for (;;) {
-    const r = await fetch('/api/streets');
+    let r;
+    try {
+      r = await fetch('/api/streets');
+    } catch {                      // nessuna connessione (galleria, treno…): si riprova da soli
+      setProgress(30, 'Nessuna connessione: riprovo tra poco…');
+      await sleep(5000);
+      continue;
+    }
     if (r.status === 503) {
       setProgress(30, 'Il server sta preparando i dati (solo al primo avvio, può richiedere qualche minuto)…');
       await sleep(5000);

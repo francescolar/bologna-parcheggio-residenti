@@ -73,7 +73,9 @@ test('index.html contiene verdetto, impostazioni e carica geo.js prima di app.js
 test('il service worker serve app e file statici senza mescolare versioni (rete prima per HTML/JS/CSS)', () => {
   const src = fs.readFileSync(path.join(PUBLIC, 'sw.js'), 'utf8');
   assert.match(src, /staticAsset/);
-  assert.doesNotMatch(src, /stale-while-revalidate\)/);
+  assert.match(src, /networkFirst/);            // con timeout: rete lenta → cache
+  assert.match(src, /NETWORK_TIMEOUT_MS/);
+  assert.match(src, /\/api\/streets/);            // dati: cache subito + aggiornamento in background
 });
 
 test('app.js e geo.js sono sintatticamente validi', () => {

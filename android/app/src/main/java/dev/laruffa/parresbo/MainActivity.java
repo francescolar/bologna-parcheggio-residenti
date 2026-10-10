@@ -9,9 +9,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -32,8 +35,15 @@ public class MainActivity extends Activity {
     private String  pendingGeoOrigin;
 
     // Barra inferiore nativa: 0 = Mappa, 1 = Impostazioni
-    private View errorBox;
+    private LinearLayout overlay;          // caricamento / errore, sopra la WebView
+    private ProgressBar overlaySpinner;
+    private TextView overlayText;
+    private Button overlayRetry;
     private boolean loadFailed = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private static final long SLOW_MS = 10_000;   // dopo 10 s senza pagina: "connessione lenta"
+    private final Runnable slowRunnable = () ->
+        showOverlay("Connessione lenta o assente.\nContinuo a provare…", true, true);
     private int currentTab = 0;
     private final ImageView[] tabIcons  = new ImageView[2];
     private final TextView[]  tabLabels = new TextView[2];
@@ -84,35 +94,46 @@ public class MainActivity extends Activity {
             webHolder.addView(settingsBtn, btnParams);
         }
 
-        // Schermata "server non raggiungibile" al posto della pagina di errore del browser
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setGravity(Gravity.CENTER);
-        box.setBackgroundColor(Color.WHITE);
-        box.setPadding(dp(32), dp(32), dp(32), dp(32));
-        TextView msg = new TextView(this);
-        msg.setText("Impossibile raggiungere ParResBo.\nControlla la connessione e riprova.");
-        msg.setTextSize(16f);
-        msg.setTextColor(Color.parseColor("#334155"));
-        msg.setGravity(Gravity.CENTER);
-        box.addView(msg);
-        Button retry = new Button(this);
-        retry.setText("Riprova");
-        retry.setTextColor(Color.WHITE);
-        retry.setBackgroundColor(RED);
-        retry.setOnClickListener(v -> {
-            loadFailed = false;
-            box.setVisibility(View.GONE);
-            loadUrl(baseUrl());
-        });
+        // Caricamento / errore: fondo rosso con logo e indicatore, finché la pagina non è arrivata
+        overlay = new LinearLayout(this);
+        overlay.setOrientation(LinearLayout.VERTICAL);
+        overlay.setGravity(Gravity.CENTER);
+        overlay.setBackgroundColor(RED);
+        overlay.setPadding(dp(32), dp(32), dp(32), dp(32));
+        overlay.setClickable(true);   // non lascia passare i tocchi alla pagina sotto
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.splash_logo);
+        overlay.addView(logo, new LinearLayout.LayoutParams(dp(160), dp(160)));
+
+        overlaySpinner = new ProgressBar(this);
+        overlaySpinner.getIndeterminateDrawable().setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(36), dp(36));
+        sp.topMargin = dp(8);
+        overlay.addView(overlaySpinner, sp);
+
+        overlayText = new TextView(this);
+        overlayText.setTextSize(15f);
+        overlayText.setTextColor(Color.WHITE);
+        overlayText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        tp.topMargin = dp(16);
+        overlay.addView(overlayText, tp);
+
+        overlayRetry = new Button(this);
+        overlayRetry.setText("Riprova");
+        overlayRetry.setTextColor(RED);
+        overlayRetry.setBackgroundColor(Color.WHITE);
+        overlayRetry.setOnClickListener(v -> retryLoad());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         rp.topMargin = dp(20);
-        box.addView(retry, rp);
-        box.setVisibility(View.GONE);
-        errorBox = box;
-        webHolder.addView(box, new FrameLayout.LayoutParams(
+        overlay.addView(overlayRetry, rp);
+
+        webHolder.addView(overlay, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        showOverlay("Carico ParResBo…", false, true);
 
         column.addView(webHolder, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -130,6 +151,7 @@ public class MainActivity extends Activity {
         });
 
         selectTab(0, false);
+        handler.postDelayed(slowRunnable, SLOW_MS);
         loadUrl(baseUrl());
     }
 
@@ -196,6 +218,26 @@ public class MainActivity extends Activity {
             bar.addView(tab, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
         }
         return bar;
+    }
+
+    private void showOverlay(String text, boolean retry, boolean spinner) {
+        overlayText.setText(text);
+        overlayRetry.setVisibility(retry ? View.VISIBLE : View.GONE);
+        overlaySpinner.setVisibility(spinner ? View.VISIBLE : View.GONE);
+        overlay.setVisibility(View.VISIBLE);
+    }
+
+    private void hideOverlay() {
+        handler.removeCallbacks(slowRunnable);
+        overlay.setVisibility(View.GONE);
+    }
+
+    private void retryLoad() {
+        loadFailed = false;
+        showOverlay("Carico ParResBo…", false, true);
+        handler.removeCallbacks(slowRunnable);
+        handler.postDelayed(slowRunnable, SLOW_MS);
+        loadUrl(baseUrl());
     }
 
     /** Evidenzia la scheda e mostra la vista corrispondente nella pagina web. */
@@ -309,11 +351,14 @@ public class MainActivity extends Activity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 loadFailed = false;
+                showOverlay("Carico ParResBo…", false, true);
+                handler.removeCallbacks(slowRunnable);
+                handler.postDelayed(slowRunnable, SLOW_MS);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (!loadFailed) errorBox.setVisibility(View.GONE);
+                if (!loadFailed) hideOverlay();
                 applyTabToPage(); // riallinea la vista alla scheda scelta (es. dopo un ricaricamento)
             }
 
@@ -322,7 +367,8 @@ public class MainActivity extends Activity {
                 // Solo la pagina principale: i tile della mappa che falliscono non devono interrompere l'app
                 if (!request.isForMainFrame()) return;
                 loadFailed = true;
-                errorBox.setVisibility(View.VISIBLE);
+                handler.removeCallbacks(slowRunnable);
+                showOverlay("Impossibile raggiungere ParResBo.\nControlla la connessione e riprova.", true, false);
                 if (BuildConfig.DEBUG) showUrlDialog();
             }
         });

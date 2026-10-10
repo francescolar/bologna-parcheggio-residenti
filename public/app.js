@@ -14,6 +14,9 @@ function zoneColor(z) { return ZONE_COLORS[z] ?? '#64748b'; }
 
 const $ = id => document.getElementById(id);
 
+// Niente menu contestuale / selezione con pressione prolungata (comportamento da app)
+document.addEventListener('contextmenu', e => e.preventDefault());
+
 // ── STATE ────────────────────────────────────────────────────────────────────
 let allStreets = [];
 let myZone     = localStorage.getItem('myZone') || '';
@@ -26,9 +29,10 @@ let locationMarker  = null;
 // ── MAPPA ────────────────────────────────────────────────────────────────────
 const map = L.map('map').setView([44.4949, 11.3426], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
   maxZoom: 19,
 }).addTo(map);
+map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
 function setProgress(pct, text) {
@@ -69,6 +73,7 @@ function render({ streets, stats }) {
 
   const sorted = [...zonesFound].sort(zoneSortFn);
   buildLegend(sorted);
+  buildSettings(sorted, stats);
   buildStats(stats);
   buildUnmatchedPanel(streets);
   $('loading').style.display = 'none';
@@ -122,7 +127,20 @@ function buildLegend(zones) {
   `);
   $('zone-select').addEventListener('change', e => setMyZone(e.target.value));
   $('legend').style.display = 'block';
+  updateLegendSummary();
 }
+
+// Legenda collassata di default: mostra solo "Zone" (+ la mia zona, se scelta)
+function setLegendOpen(open) {
+  $('legend').classList.toggle('collapsed', !open);
+  $('legend-toggle').setAttribute('aria-expanded', String(open));
+}
+
+function updateLegendSummary() {
+  $('legend-summary').textContent = myZone ? (myZone === 'MISTA' ? 'Mista' : `Zona ${myZone}`) : '';
+}
+
+$('legend-toggle').addEventListener('click', () => setLegendOpen($('legend').classList.contains('collapsed')));
 
 // ── TOGGLE VISIBILITÀ ZONA ────────────────────────────────────────────────────
 function toggleZone(zone) {
@@ -134,6 +152,7 @@ function toggleZone(zone) {
     if (zoneLayers[zone]) map.removeLayer(zoneLayers[zone]);
   }
   localStorage.setItem('hiddenZones', JSON.stringify([...hiddenZones]));
+  syncSettings();
   const row = document.querySelector(`.leg-row[data-zone="${zone}"]`);
   if (row) {
     const h = hiddenZones.has(zone);
@@ -147,6 +166,10 @@ function toggleZone(zone) {
 function setMyZone(zone) {
   myZone = zone;
   localStorage.setItem('myZone', zone);
+  updateLegendSummary();
+  syncSettings();
+  const sel = $('zone-select');
+  if (sel) sel.value = zone;
   for (const [z, lines] of Object.entries(zonePolylines)) {
     const isMyZ = zone !== '' && z === zone;
     for (const pl of lines) {
@@ -156,8 +179,11 @@ function setMyZone(zone) {
 }
 
 // ── GEOLOCALIZZAZIONE ─────────────────────────────────────────────────────────
+const LOCATE_LABEL = '<span class="locate-icon">◎</span> Posso parcheggiare qui?';
+
 function setupLocateBtn() {
   const btn = $('locate-btn');
+  btn.innerHTML = LOCATE_LABEL;
   btn.style.display = 'flex';
   btn.addEventListener('click', () => {
     if (DEBUG && simMode) {
@@ -178,12 +204,12 @@ function setupLocateBtn() {
     navigator.geolocation.getCurrentPosition(
       pos => {
         btn.disabled = false;
-        btn.innerHTML = '<span class="locate-icon">◎</span> Dove sono?';
+        btn.innerHTML = LOCATE_LABEL;
         onPosition(pos);
       },
       err => {
         btn.disabled = false;
-        btn.innerHTML = '<span class="locate-icon">◎</span> Dove sono?';
+        btn.innerHTML = LOCATE_LABEL;
         showLocateResult('Posizione non disponibile: ' + err.message, 'neutral');
       },
       { enableHighAccuracy: true, timeout: 12000 }
@@ -201,62 +227,67 @@ function onPosition({ coords: { latitude: lat, longitude: lng } }) {
   showPositionResult(lat, lng);
 }
 
-// Mostra a quale zona appartiene la via più vicina a (lat, lng) e se ci si può parcheggiare
+const streetLabel = s => s.label ?? s.descr;
+const fmtDist = m => m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`;
+let parkingMarker = null;
+
+// SÌ / NO! a tutto schermo in base alla zona della via più vicina a (lat, lng)
 function showPositionResult(lat, lng) {
-  const result = findNearestStreet(lat, lng);
+  hideVerdict();
+  const result = Geo.findNearestStreet(allStreets, lat, lng);
   if (!result) {
     showLocateResult('Nessuna strada trovata nelle vicinanze.', 'neutral');
     return;
   }
+  const { street } = result;
+  const zones = street.zones.join(', ');
 
-  const { street, distDeg } = result;
-  const distM    = Math.round(distDeg * 111_000);
-  const zones    = street.zones.join(', ');
-  const inMyZone = myZone && street.zones.includes(myZone);
-  const noZone   = !myZone;
-
-  let html, type;
-  if (noZone) {
-    html = `<b>${street.descr}</b> &nbsp;·&nbsp; Zona <b>${zones}</b>
-            <div class="res-sub">Imposta la tua zona per sapere se puoi parcheggiare &nbsp;(~${distM} m)</div>`;
-    type = 'neutral';
-  } else if (inMyZone) {
-    html = `<b>${street.descr}</b> &nbsp;·&nbsp; Zona <b>${zones}</b>
-            <div class="res-sub">✓ Puoi parcheggiare qui &nbsp;(zona ${myZone}, ~${distM} m)</div>`;
-    type = 'ok';
-  } else {
-    html = `<b>${street.descr}</b> &nbsp;·&nbsp; Zona <b>${zones}</b>
-            <div class="res-sub">✗ Non è la tua zona &nbsp;(tua: <b>${myZone}</b>, ~${distM} m)</div>`;
-    type = 'no';
+  if (!myZone) {
+    showLocateResult(`<b>${streetLabel(street)}</b> &nbsp;·&nbsp; Zona <b>${zones}</b>
+      <div class="res-sub">Scegli la tua zona nel menu “Zone” per sapere se puoi parcheggiare</div>`, 'neutral');
+    setLegendOpen(true);
+    return;
   }
-  showLocateResult(html, type);
+
+  if (street.zones.includes(myZone)) {
+    showVerdict({ ok: true, title: 'SÌ', street, sub: `Puoi parcheggiare qui · zona ${myZone}` });
+    return;
+  }
+
+  const target = Geo.nearestInZone(allStreets, lat, lng, myZone);
+  showVerdict({ ok: false, title: 'NO!', street, sub: `Non è la tua zona (${zones}) · la tua è ${myZone}`, target });
 }
 
-// ── TROVA VIA PIÙ VICINA ──────────────────────────────────────────────────────
-function ptSegDist(lat, lng, aLat, aLng, bLat, bLng) {
-  const dx = bLng - aLng, dy = bLat - aLat;
-  const len2 = dx * dx + dy * dy;
-  if (len2 === 0) return Math.hypot(lng - aLng, lat - aLat);
-  const t = Math.max(0, Math.min(1, ((lng - aLng) * dx + (lat - aLat) * dy) / len2));
-  return Math.hypot(lng - (aLng + t * dx), lat - (aLat + t * dy));
+function showVerdict({ ok, title, street, sub, target }) {
+  const el = $('verdict');
+  el.className = 'verdict ' + (ok ? 'verdict-yes' : 'verdict-no');
+  el.innerHTML = `
+    <button class="verdict-close" aria-label="chiudi">✕</button>
+    <div class="verdict-big">${title}</div>
+    <div class="verdict-street">${streetLabel(street)}</div>
+    <div class="verdict-sub">${sub}</div>
+    ${target ? `<button class="verdict-nav">Vuoi andare al parcheggio più vicino?
+      <small>${streetLabel(target.street)} · ${fmtDist(target.distM)}</small></button>` : ''}`;
+  el.style.display = 'flex';
+  el.querySelector('.verdict-close').onclick = hideVerdict;
+  if (target) {
+    parkingMarker = L.marker([target.lat, target.lng], {
+      icon: L.divIcon({ className: 'parking-pin', html: 'P', iconSize: [30, 30], iconAnchor: [15, 15] }),
+    }).addTo(map);
+    el.querySelector('.verdict-nav').onclick = () => openNavigation(target);
+  }
 }
 
-function findNearestStreet(lat, lng) {
-  let best = null, bestD = Infinity;
-  for (const s of allStreets) {
-    if (!s.matched || !s.polylines.length) continue;
-    for (const line of s.polylines) {
-      for (let i = 0; i < line.length - 1; i++) {
-        const d = ptSegDist(lat, lng, line[i][0], line[i][1], line[i + 1][0], line[i + 1][1]);
-        if (d < bestD) { bestD = d; best = s; }
-      }
-      if (line.length === 1) {
-        const d = Math.hypot(lng - line[0][1], lat - line[0][0]);
-        if (d < bestD) { bestD = d; best = s; }
-      }
-    }
-  }
-  return best ? { street: best, distDeg: bestD } : null;
+function hideVerdict() {
+  $('verdict').style.display = 'none';
+  if (parkingMarker) { parkingMarker.remove(); parkingMarker = null; }
+}
+
+function openNavigation(target) {
+  const label = `${streetLabel(target.street)} (zona ${myZone})`;
+  const url = Geo.navigationUrl(target.lat, target.lng, label, navigator.userAgent);
+  if (url.startsWith('geo:')) window.location.href = url;   // l'app Android lo gira al sistema (scelta app)
+  else window.open(url, '_blank', 'noopener');
 }
 
 // ── TOAST RISULTATO ───────────────────────────────────────────────────────────
@@ -291,6 +322,93 @@ function buildUnmatchedPanel(streets) {
   $('unmatched-close').onclick = () => $('unmatched-panel').classList.remove('open');
   $('unmatched-panel').style.display = null;
 }
+
+// ── IMPOSTAZIONI ──────────────────────────────────────────────────────────────
+// Vista a pieno schermo dentro la pagina. Nell'app Android la apre la barra nativa
+// (window.ParResBo.showView); sul web si apre dal pulsante ⚙.
+const IN_APP = navigator.userAgent.includes('ParResBoApp');
+document.documentElement.classList.toggle('in-app', IN_APP);
+
+const zoneName = z => z === 'MISTA' ? 'Zone miste' : `Zona ${z}`;
+let settingsZones = [];
+
+function buildSettings(zones, stats) {
+  settingsZones = zones;
+  $('settings-body').innerHTML = `
+    <section>
+      <h3>La mia zona</h3>
+      <p class="set-help">Serve per dirti se puoi parcheggiare dove ti trovi.</p>
+      <select id="set-my-zone">
+        <option value="">— scegli —</option>
+        ${zones.map(z => `<option value="${z}">${zoneName(z)}</option>`).join('')}
+      </select>
+    </section>
+    <section>
+      <h3>Zone sulla mappa</h3>
+      <div class="set-actions">
+        <button id="set-all">Mostra tutte</button>
+        <button id="set-mine">Solo la mia</button>
+        <button id="set-none">Nascondi tutte</button>
+      </div>
+      <div id="set-zones">
+        ${zones.map(z => `
+          <label class="set-zone" data-zone="${z}">
+            <span class="leg-swatch" style="background:${zoneColor(z)}"></span>
+            <span class="set-zone-name">${zoneName(z)}</span>
+            <input type="checkbox" class="set-switch" data-zone="${z}">
+          </label>`).join('')}
+      </div>
+    </section>
+    <section>
+      <h3>Informazioni</h3>
+      <p class="set-help">Zone e strade: open data del Comune di Bologna.<br>
+        Mappa e geometrie: © OpenStreetMap contributors.<br>
+        Strade abbinate: ${stats.matched}/${stats.total}.</p>
+      <button id="set-reset" class="set-danger">Ripristina impostazioni</button>
+    </section>`;
+
+  $('set-my-zone').addEventListener('change', e => setMyZone(e.target.value));
+  $('set-zones').addEventListener('change', e => {
+    const z = e.target.dataset.zone;
+    if (z !== undefined && hiddenZones.has(z) === e.target.checked) toggleZone(z);
+  });
+  $('set-all').onclick  = () => settingsZones.forEach(z => setZoneVisible(z, true));
+  $('set-none').onclick = () => settingsZones.forEach(z => setZoneVisible(z, false));
+  $('set-mine').onclick = () => {
+    if (!myZone) { $('set-my-zone').focus(); return; }
+    settingsZones.forEach(z => setZoneVisible(z, z === myZone));
+  };
+  $('set-reset').onclick = () => {
+    const b = $('set-reset');
+    if (!b.dataset.armed) {            // niente confirm(): nella WebView non si vedrebbe
+      b.dataset.armed = '1'; b.textContent = 'Sicuro? Tocca di nuovo'; return;
+    }
+    localStorage.removeItem('myZone'); localStorage.removeItem('hiddenZones');
+    location.reload();
+  };
+  syncSettings();
+}
+
+function setZoneVisible(zone, visible) {
+  if (hiddenZones.has(zone) === visible) toggleZone(zone);
+}
+
+// Allinea i controlli delle impostazioni allo stato (zona scelta, zone visibili)
+function syncSettings() {
+  const sel = $('set-my-zone');
+  if (!sel) return;
+  sel.value = myZone;
+  for (const cb of document.querySelectorAll('.set-switch')) cb.checked = !hiddenZones.has(cb.dataset.zone);
+}
+
+function showView(name) {
+  $('settings').style.display = name === 'settings' ? 'flex' : 'none';
+}
+window.ParResBo = { showView };
+
+$('settings-fab').addEventListener('click', () => showView('settings'));
+$('settings-close').addEventListener('click', () => showView('map'));
+if (!IN_APP) $('settings-fab').style.display = 'block';
 
 // ── DEBUG: POSIZIONE SIMULATA ─────────────────────────────────────────────────
 // Attivo con ?debug=1 oppure nella build debug dell'app Android (User-Agent "ParResBoDebug").
@@ -332,6 +450,7 @@ function setupDebugPanel() {
     if (locationMarker) { locationMarker.remove(); locationMarker = null; }
     if (!simMode && simMarker) { simMarker.remove(); simMarker = null; }
     $('locate-result').style.display = 'none';
+    hideVerdict();
   });
   map.on('click', e => { if (simMode) placeSimMarker(e.latlng.lat, e.latlng.lng); });
 }

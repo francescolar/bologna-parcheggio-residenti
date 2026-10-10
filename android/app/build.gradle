@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'it.bologna.parcheggio'
+    namespace 'dev.laruffa.parresbo'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'it.bologna.parcheggio'
+        applicationId 'dev.laruffa.parresbo'
         minSdk 24
         targetSdk 34
         versionCode 1

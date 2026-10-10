@@ -489,6 +489,7 @@ function processStreets(records, osmWays) {
     result.push({
       via: s.via,
       descr: s.descr,
+      label: s.candidates[0], // nome leggibile (es. "Via Oberdan"), per l'interfaccia
       zones,
       zone,
       matched: !!foundWays,

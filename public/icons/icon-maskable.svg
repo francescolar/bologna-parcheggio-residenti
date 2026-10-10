@@ -6,7 +6,7 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
-  <g transform="translate(256 256) scale(0.68) translate(-280 -265)">
+  <g transform="translate(256 256) scale(0.68) translate(-249 -265)">
   <g fill="#fff">
     <!-- Garisenda (bassa, inclinata) -->
     <g transform="rotate(-5 205 440)">

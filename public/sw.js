@@ -1,12 +1,12 @@
 'use strict';
 
-// Service worker: app shell in cache (stale-while-revalidate) + ultimo /api/streets buono
+// Service worker: app shell in cache (rete prima, cache offline) + ultimo /api/streets buono
 // come fallback offline (network-first). Incrementare CACHE a ogni cambio di strategia.
-const CACHE = 'parresbo-v3';
+const CACHE = 'parresbo-v6';
 const SHELL = [
-  '/', '/style.css', '/app.js', '/manifest.webmanifest',
+  '/', '/style.css', '/app.js', '/geo.js', '/manifest.webmanifest',
   '/vendor/leaflet/leaflet.css', '/vendor/leaflet/leaflet.js',
-  '/icons/icon.svg', '/icons/icon-192.png', '/icons/icon-512.png',
+  '/icons/icon.svg', '/icons/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png',
 ];
 
 self.addEventListener('install', e => {
@@ -39,13 +39,16 @@ self.addEventListener('fetch', e => {
 
   if (url.pathname === '/healthz') return;
 
+  // Librerie e icone cambiano di rado: prima la cache. Il resto (HTML/JS/CSS dell'app): prima la rete,
+  // così dopo un aggiornamento non si mescolano file vecchi e nuovi; offline si usa la cache.
+  const staticAsset = url.pathname.startsWith('/vendor/') || url.pathname.startsWith('/icons/');
+  const fromNetwork = () => fetch(req).then(res => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+    return res;
+  });
   e.respondWith(
-    caches.match(req).then(hit => {
-      const net = fetch(req).then(res => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
-        return res;
-      }).catch(() => hit);
-      return hit ?? net;
-    })
+    staticAsset
+      ? caches.match(req).then(hit => hit ?? fromNetwork())
+      : fromNetwork().catch(() => caches.match(req).then(hit => hit ?? Response.error()))
   );
 });

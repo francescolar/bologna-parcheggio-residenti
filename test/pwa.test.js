@@ -61,3 +61,24 @@ test('il service worker è servito e precarica solo file esistenti', async () =>
     assert.equal(res.status, 200, `${p} nello SHELL del service worker non è raggiungibile`);
   }
 });
+
+test('index.html contiene verdetto, impostazioni e carica geo.js prima di app.js', () => {
+  assert.match(html, /id="verdict"/);
+  assert.match(html, /id="settings"/);
+  assert.match(html, /<script src="\/geo\.js"><\/script>\s*<script src="\/app\.js"><\/script>/);
+  assert.match(html, /Posso parcheggiare qui\?/);
+  assert.match(html, /id="legend" class="collapsed"/);   // legenda collassata di default
+});
+
+test('il service worker serve app e file statici senza mescolare versioni (rete prima per HTML/JS/CSS)', () => {
+  const src = fs.readFileSync(path.join(PUBLIC, 'sw.js'), 'utf8');
+  assert.match(src, /staticAsset/);
+  assert.doesNotMatch(src, /stale-while-revalidate\)/);
+});
+
+test('app.js e geo.js sono sintatticamente validi', () => {
+  const vm = require('node:vm');
+  for (const f of ['app.js', 'geo.js', 'sw.js']) {
+    assert.doesNotThrow(() => new vm.Script(fs.readFileSync(path.join(PUBLIC, f), 'utf8'), { filename: f }), f);
+  }
+});

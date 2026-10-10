@@ -12,7 +12,7 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 }
 #loading h2 { color: #1e293b; font-size: 18px; font-weight: 600; }
 .bar-wrap { width: 340px; height: 7px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
-.bar-fill  { height: 100%; background: #3b82f6; border-radius: 99px; transition: width .4s ease; width: 0%; }
+.bar-fill  { height: 100%; background: #c8102e; border-radius: 99px; transition: width .4s ease; width: 0%; }
 #prog-text { font-size: 13px; color: #64748b; }
 
 /* ── LEGEND ── */
@@ -55,13 +55,13 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   background: #f8fafc; cursor: pointer; outline: none;
   transition: border-color .15s;
 }
-#zone-select:focus { border-color: #3b82f6; }
+#zone-select:focus { border-color: #c8102e; }
 
 /* ── BOTTONE DOVE SONO ── */
 #locate-btn {
   position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%);
   display: none; align-items: center; gap: 7px;
-  background: #1d4ed8; color: white;
+  background: #c8102e; color: white;
   padding: 11px 22px; border-radius: 99px;
   font-size: 14px; font-weight: 600;
   border: none; cursor: pointer;

@@ -2,8 +2,13 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      # solo localhost: l'accesso pubblico passa dal reverse proxy (Apache) con HTTPS.
+      # Cambiare HOST_PORT se la porta è già occupata sul server.
+      - "127.0.0.1:${HOST_PORT:-3100}:3000"
     volumes:
-      # persiste la cache Overpass tra i riavvii del container
-      - ./cache:/app/cache
+      # persiste la cache Overpass tra i riavvii/deploy (volume gestito da Docker)
+      - parresbo-cache:/app/cache
     restart: unless-stopped
+
+volumes:
+  parresbo-cache:

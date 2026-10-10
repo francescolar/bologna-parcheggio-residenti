@@ -19,10 +19,10 @@ npm start          # http://localhost:3000  (PORT per cambiare porta)
 Docker:
 
 ```sh
-docker compose up -d --build
+docker compose up -d --build   # http://127.0.0.1:3100 (HOST_PORT per cambiare)
 ```
 
-La cartella `cache/` è montata come volume, quindi sopravvive ai riavvii. Al primo avvio (o a cache scaduta) il download da Overpass può richiedere diversi minuti.
+La cache Overpass sta in un volume Docker (`parresbo-cache`), quindi sopravvive ai riavvii e ai deploy. Al primo avvio (o a cache scaduta) il download da Overpass può richiedere diversi minuti.
 
 ## Test
 
@@ -42,9 +42,9 @@ Sono due domini sullo stesso servizio Coolify: l'header `Host` permette di disti
 - `PORT` – porta HTTP (default 3000)
 - `OVERPASS_CONTACT` – email o URL inserito nello User-Agent verso Overpass (default: URL del repo)
 
-## Deploy (Coolify)
+## Deploy (Coolify + Apache come reverse proxy)
 
-Build pack **Dockerfile**, porta 3000, storage persistente su `/app/cache`, dominio con HTTPS. Healthcheck: `GET /healthz` (risponde subito; `ready:true` a dati caricati). Finché il primo download non è finito `/api/streets` risponde `503` e il client riprova da solo.
+Build pack **Docker Compose** (usa `docker-compose.yml`). Il container espone solo `127.0.0.1:${HOST_PORT:-3100}`; Apache fa da reverse proxy con HTTPS verso quella porta per entrambi i domini. Healthcheck: `GET /healthz` (risponde subito; `ready:true` a dati caricati). Finché il primo download non è finito `/api/streets` risponde `503` e il client riprova da solo.
 
 ## Stato
 

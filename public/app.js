@@ -172,6 +172,7 @@ function toggleZone(zone) {
 function setMyZone(zone) {
   myZone = zone;
   localStorage.setItem('myZone', zone);
+  window.ParResBoNative?.setMyZone(zone);   // condivisa con Android Auto
   updateLegendSummary();
   syncSettings();
   const sel = $('zone-select');
@@ -234,12 +235,21 @@ let parkingMarker = null;
 // SÌ / NO! a tutto schermo in base alla zona della via più vicina a (lat, lng)
 function showPositionResult(lat, lng) {
   hideVerdict();
-  const result = Geo.findNearestStreet(allStreets, lat, lng);
-  if (!result) {
-    showLocateResult('Nessuna strada trovata nelle vicinanze.', 'neutral');
+  const c = Geo.classify(allStreets, lat, lng);
+
+  // Lontano da ogni via con zona residenti: non si può dire né SÌ né NO
+  if (c.kind !== 'street') {
+    const n = c.nearest;
+    showVerdict(c.kind === 'outside'
+      ? { tone: 'none', title: '?', headline: 'Sei fuori zona',
+          sub: n ? `Le strade con zona residenti di Bologna più vicine sono a circa ${fmtDist(n.distM)}.`
+                 : 'Non ci sono dati per questa posizione.' }
+      : { tone: 'none', title: '?', headline: 'Nessuna zona qui',
+          sub: `Nessuna via con zona residenti entro ${Geo.MAX_STREET_M} m. La più vicina è ${streetLabel(n.street)} (${fmtDist(n.distM)}).` });
     return;
   }
-  const { street } = result;
+
+  const { street } = c;
   const zones = street.zones.join(', ');
 
   if (!myZone) {
@@ -250,26 +260,27 @@ function showPositionResult(lat, lng) {
   }
 
   if (street.zones.includes(myZone)) {
-    showVerdict({ ok: true, title: 'SÌ', street, sub: `Puoi parcheggiare qui · zona ${myZone}` });
+    showVerdict({ tone: 'yes', title: 'SÌ', headline: streetLabel(street), sub: `Puoi parcheggiare qui · zona ${myZone}` });
     return;
   }
 
   const target = Geo.nearestInZone(allStreets, lat, lng, myZone);
-  showVerdict({ ok: false, title: 'NO!', street, sub: `Non è la tua zona (${zones}) · la tua è ${myZone}`, target });
+  showVerdict({ tone: 'no', title: 'NO!', headline: streetLabel(street), sub: `Non è la tua zona (${zones}) · la tua è ${myZone}`, target });
 }
 
 const VERDICT_MS = 5000;
 let verdictTimer = null;
 
-function showVerdict({ ok, title, street, sub, target }) {
+function showVerdict({ tone, title, headline, sub, target }) {
   const el = $('verdict');
-  el.className = 'verdict ' + (ok ? 'verdict-yes' : 'verdict-no');
+  el.className = 'verdict verdict-' + tone;
   el.innerHTML = `
     <div class="verdict-big">${title}</div>
-    <div class="verdict-street">${streetLabel(street)}</div>
+    <div class="verdict-street">${headline}</div>
     <div class="verdict-sub">${sub}</div>
     ${target ? `<button class="verdict-nav">Vuoi andare al parcheggio più vicino?
       <small>${streetLabel(target.street)} · ${fmtDist(target.distM)}</small></button>` : ''}
+    <div class="verdict-note">Verifica sempre la segnaletica stradale</div>
     <div class="verdict-timer"></div>`;
   el.style.display = 'flex';
   // Si chiude toccando un punto qualsiasi, oppure da solo dopo 5 secondi
@@ -315,6 +326,34 @@ function showLocateResult(html, type) {
   el.style.display = 'block';
   el.querySelector('.res-close').onclick = () => { el.style.display = 'none'; };
 }
+
+// ── AVVISO LEGALE (primo avvio) ───────────────────────────────────────────────
+// Cambiare DISCLAIMER_KEY se il testo cambia in modo sostanziale: l'avviso viene mostrato di nuovo.
+const DISCLAIMER_KEY = 'disclaimerV1';
+const disclaimerAccepted = () =>
+  localStorage.getItem(DISCLAIMER_KEY) === '1' || window.ParResBoNative?.isDisclaimerAccepted?.() === true;
+
+function showDisclaimer() {
+  const el = $('disclaimer');
+  el.innerHTML = `
+    <div class="disclaimer-card">
+      <h2>Prima di iniziare</h2>
+      <p><b>ParResBo non è un’app ufficiale del Comune di Bologna.</b></p>
+      <p>Le zone e le strade arrivano dagli <b>open data pubblici del Comune di Bologna</b>, le mappe da
+         OpenStreetMap. I dati possono essere <b>incompleti, non aggiornati o imprecisi</b>, e la posizione
+         GPS può avere errori.</p>
+      <p>Le risposte dell’app sono solo un aiuto: <b>fa sempre fede la segnaletica stradale</b>.
+         L’autore non risponde di multe, sanzioni o altri danni derivanti dall’uso dell’app.</p>
+      <button id="disclaimer-ok">Ho capito</button>
+    </div>`;
+  el.style.display = 'flex';
+  $('disclaimer-ok').onclick = () => {
+    localStorage.setItem(DISCLAIMER_KEY, '1');
+    window.ParResBoNative?.acceptDisclaimer?.();   // vale anche per Android Auto
+    el.style.display = 'none';
+  };
+}
+if (!disclaimerAccepted()) showDisclaimer();
 
 // ── IMPOSTAZIONI ──────────────────────────────────────────────────────────────
 // Vista a pieno schermo dentro la pagina. Nell'app Android la apre la barra nativa
@@ -365,9 +404,11 @@ function buildSettings(zones, stats, streets) {
       <h3>Informazioni</h3>
       <p class="set-help">Zone e strade: open data del Comune di Bologna.<br>
         Mappa e geometrie: © OpenStreetMap contributors.<br>
-        Versione: <b>${PAGE_BUILD || '–'}</b>${PAGE_BUILD_TIME ? ` · ${fmtBuildTime(PAGE_BUILD_TIME)}` : ''}${APP_VERSION ? `<br>App Android: <b>${APP_VERSION}</b>` : ''}</p>
+        <span id="set-version">Versione: <b>${PAGE_BUILD || '–'}</b></span>${PAGE_BUILD_TIME ? ` · ${fmtBuildTime(PAGE_BUILD_TIME)}` : ''}${APP_VERSION ? `<br>App Android: <b>${APP_VERSION}</b>` : ''}</p>
       <p id="set-update-status" class="set-status"></p>
+      <div id="set-debug"></div>
       <button id="set-update">Aggiorna app (svuota la cache)</button>
+      <button id="set-legal">Avviso legale</button>
       <button id="set-reset" class="set-danger">Ripristina impostazioni</button>
     </section>`;
 
@@ -383,6 +424,8 @@ function buildSettings(zones, stats, streets) {
     settingsZones.forEach(z => setZoneVisible(z, z === myZone));
   };
   $('set-update').onclick = hardRefresh;
+  $('set-legal').onclick = showDisclaimer;
+  setupDebugSection();
   $('set-reset').onclick = () => {
     const b = $('set-reset');
     if (!b.dataset.armed) {            // niente confirm(): nella WebView non si vedrebbe
@@ -392,6 +435,47 @@ function buildSettings(zones, stats, streets) {
     location.reload();
   };
   syncSettings();
+}
+
+// Modalità debug: voce visibile solo se già sbloccata; altrimenti compare con 5 tocchi sulla versione
+function setupDebugSection() {
+  const box = $('set-debug');
+  const renderOn = () => {
+    box.innerHTML = `<p class="set-status set-ok">Modalità debug attiva (posizione simulata sulla mappa)</p>
+      <button id="set-debug-off">Disattiva debug</button>`;
+    $('set-debug-off').onclick = () => { localStorage.removeItem('debugUnlocked'); location.reload(); };
+  };
+  const renderForm = () => {
+    box.innerHTML = `<div class="set-debug-form">
+      <input id="set-debug-pw" type="password" placeholder="Password debug" autocomplete="off">
+      <button id="set-debug-go">Sblocca</button></div>
+      <p id="set-debug-msg" class="set-status"></p>`;
+    const go = async () => {
+      const msg = $('set-debug-msg');
+      msg.className = 'set-status'; msg.textContent = 'Verifica…';
+      try {
+        const r = await fetch('/api/debug/unlock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: $('set-debug-pw').value }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { msg.classList.add('set-old'); msg.textContent = j.error ?? `Errore ${r.status}`; return; }
+        localStorage.setItem('debugUnlocked', '1');
+        DEBUG = true;
+        setupDebugPanel();
+        renderOn();
+      } catch { msg.textContent = 'Impossibile contattare il server'; }
+    };
+    $('set-debug-go').onclick = go;
+    $('set-debug-pw').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  };
+  if (DEBUG) { renderOn(); return; }
+  let taps = 0, last = 0;
+  $('set-version').addEventListener('click', () => {
+    const now = Date.now();
+    taps = now - last < 1500 ? taps + 1 : 1; last = now;
+    if (taps >= 5) { taps = 0; renderForm(); }
+  });
 }
 
 function setZoneVisible(zone, visible) {
@@ -419,9 +503,9 @@ $('settings').addEventListener('click', e => { if (e.target === $('settings')) s
 if (!IN_APP) $('settings-fab').style.display = 'block';
 
 // ── DEBUG: POSIZIONE SIMULATA ─────────────────────────────────────────────────
-// Attivo con ?debug=1 oppure nella build debug dell'app Android (User-Agent "ParResBoDebug").
+// Si sblocca con una password dalle Impostazioni (5 tocchi sulla versione), verificata dal server.
 // Permette di scegliere tra GPS reale e un puntino trascinabile sulla mappa.
-const DEBUG = /[?&]debug=1\b/.test(location.search) || navigator.userAgent.includes('ParResBoDebug');
+let DEBUG = localStorage.getItem('debugUnlocked') === '1';
 let simMode   = false;
 let simMarker = null;
 
@@ -441,8 +525,10 @@ function placeSimMarker(lat, lng) {
   showPositionResult(lat, lng);
 }
 
+let debugPanelReady = false;
 function setupDebugPanel() {
-  if (!DEBUG) return;
+  if (!DEBUG || debugPanelReady) return;
+  debugPanelReady = true;
   const panel = document.createElement('div');
   panel.id = 'debug-panel';
   panel.innerHTML = `
@@ -489,6 +575,10 @@ async function main() {
     if (data.error) throw new Error(data.error);
     setProgress(95, 'Disegno polilinee…');
     render(data);
+    // Nell'app la zona può essere stata cambiata dall'auto: vale quella nativa
+    const nativeZone = window.ParResBoNative?.getMyZone();
+    if (nativeZone && nativeZone !== myZone) setMyZone(nativeZone);
+    else if (myZone) window.ParResBoNative?.setMyZone(myZone);
     setupLocateBtn();
     setupDebugPanel();
   } catch (err) {

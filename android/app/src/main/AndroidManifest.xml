@@ -12,6 +12,23 @@
         android:allowBackup="false"
         android:theme="@style/AppTheme">
 
+        <!-- Android Auto: app per auto (Car App Library), categoria parcheggio -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="2" />
+
+        <service
+            android:name=".car.ParResBoCarService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.PARKING" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

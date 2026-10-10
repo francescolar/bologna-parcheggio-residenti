@@ -41,6 +41,7 @@ Sono due domini sullo stesso servizio Coolify: l'header `Host` permette di disti
 
 - `PORT` – porta HTTP (default 3000)
 - `OVERPASS_CONTACT` – email o URL inserito nello User-Agent verso Overpass (default: URL del repo)
+- `DEBUG_PASSWORD` – password per sbloccare la modalità debug (posizione simulata). Vuota/non impostata = debug disattivato. Si sblocca da Impostazioni toccando 5 volte la versione.
 
 ## Deploy (Coolify + Apache come reverse proxy)
 
@@ -49,3 +50,13 @@ Build pack **Docker Compose** (usa `docker-compose.yml`). Il container espone so
 ## Stato
 
 Match stradario ↔ OSM: 1021/1023 vie. Senza corrispondenza: `DE MELLO (PIAZZA)`, `NETTUNO (PIAZZA)`.
+
+## Android Auto
+
+Nell'APK c'è anche un'app per Android Auto (`android/app/src/main/java/dev/laruffa/parresbo/car/`, Car App Library, categoria *parking*): mostra SÌ / NO! in base alla posizione del telefono e alla zona scelta, e nel NO! propone la navigazione verso il punto più vicino della propria zona. La zona è condivisa con l'app tramite `Prefs`. Una WebView non è ammessa su Android Auto, quindi la UI è nativa; la logica di ricerca è la stessa di `public/geo.js` ed è coperta da test JUnit (`gradle testDebugUnitTest`).
+
+Prima di pubblicare su Google Play: sostituire `ALLOW_ALL_HOSTS_VALIDATOR` in `ParResBoCarService` con l'elenco degli host ammessi.
+
+### Provarla
+1. Sul telefono: Android Auto → Impostazioni → toccare 10 volte "Versione" → menu ⋮ → *Impostazioni sviluppatore* → attivare *Origini sconosciute*.
+2. Con l'auto: collegare il telefono. Senza auto: Desktop Head Unit (SDK Manager → SDK Tools → *Android Auto Desktop Head Unit Emulator*): in Android Auto *Avvia server unità principale*, poi `adb forward tcp:5277 tcp:5277` e avviare `desktop-head-unit`.

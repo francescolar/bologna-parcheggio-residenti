@@ -43,6 +43,17 @@
   const nearestInZone = (streets, lat, lng, zone) =>
     nearest(streets, lat, lng, s => s.zones.includes(zone));
 
+  // Dove sei rispetto ai dati: su una via con zona, vicino a Bologna ma senza zona, o fuori zona.
+  // Il dataset contiene solo le vie con zona residenti: lontano da ognuna non si può dire né SÌ né NO.
+  const MAX_STREET_M = 60;    // oltre questa distanza non sei su una via con zona residenti (errore GPS incluso)
+  const OUTSIDE_M = 3000;     // oltre questa distanza dalla via più vicina sei fuori dall'area coperta
+  function classify(streets, lat, lng) {
+    const n = nearest(streets, lat, lng);
+    if (!n) return { kind: 'outside', nearest: null };
+    if (n.distM <= MAX_STREET_M) return { kind: 'street', ...n };
+    return { kind: n.distM > OUTSIDE_M ? 'outside' : 'nozone', nearest: n };
+  }
+
   // Link per aprire la navigazione verso un punto nell'app di mappe del dispositivo.
   // Android: geo: → il sistema propone tutte le app di mappe/navigazione installate.
   function navigationUrl(lat, lng, label, userAgent) {
@@ -56,4 +67,7 @@
   root.findNearestStreet = findNearestStreet;
   root.nearestInZone = nearestInZone;
   root.navigationUrl = navigationUrl;
+  root.classify = classify;
+  root.MAX_STREET_M = MAX_STREET_M;
+  root.OUTSIDE_M = OUTSIDE_M;
 })(typeof module !== 'undefined' && module.exports ? module.exports : (window.Geo = {}));

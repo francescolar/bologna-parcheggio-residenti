@@ -31,4 +31,10 @@ android {
     }
 }
 
-dependencies {}
+dependencies {
+    // Android Auto: app per auto con schermate a modelli (Car App Library)
+    implementation 'androidx.car.app:app:1.4.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
+}

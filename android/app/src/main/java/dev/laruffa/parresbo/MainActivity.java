@@ -23,8 +23,6 @@ import android.widget.*;
 
 public class MainActivity extends Activity {
 
-    private static final String PREFS   = "prefs";
-    private static final String KEY_URL = "server_url";
     private static final int    REQ_LOC = 1001;
     private static final int    RED     = Color.parseColor("#C8102E");
     private static final int    GREY    = Color.parseColor("#64748B");
@@ -222,8 +220,8 @@ public class MainActivity extends Activity {
     /** URL del server: fisso in release, sovrascrivibile (⚙) nella build debug. */
     private String baseUrl() {
         if (BuildConfig.DEBUG) {
-            return getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_URL, BuildConfig.BASE_URL);
+            return getSharedPreferences(Prefs.FILE, Context.MODE_PRIVATE)
+                .getString(Prefs.KEY_URL, BuildConfig.BASE_URL);
         }
         return BuildConfig.BASE_URL;
     }
@@ -249,14 +247,22 @@ public class MainActivity extends Activity {
         s.setAllowContentAccess(false);
         s.setTextZoom(100);
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
-        // La pagina riconosce l'app (niente pulsanti web ridondanti); la build debug attiva gli strumenti di debug
-        s.setUserAgentString(s.getUserAgentString() + " ParResBoApp/" + BuildConfig.VERSION_NAME + (BuildConfig.DEBUG ? " ParResBoDebug" : ""));
+        // La pagina riconosce l'app (niente pulsanti web ridondanti) e ne legge la versione
+        s.setUserAgentString(s.getUserAgentString() + " ParResBoApp/" + BuildConfig.VERSION_NAME);
 
         // Niente selezione/menu "Copia, Seleziona tutto…" con pressione prolungata
         webView.setLongClickable(false);
         webView.setHapticFeedbackEnabled(false);
         webView.setOnLongClickListener(v -> true);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+
+        // Ponte con la pagina: la zona scelta è condivisa con l'app per Android Auto
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface public String getMyZone() { return Prefs.myZone(MainActivity.this); }
+            @JavascriptInterface public void setMyZone(String zone) { Prefs.setMyZone(MainActivity.this, zone); }
+            @JavascriptInterface public boolean isDisclaimerAccepted() { return Prefs.disclaimerAccepted(MainActivity.this); }
+            @JavascriptInterface public void acceptDisclaimer() { Prefs.acceptDisclaimer(MainActivity.this); }
+        }, "ParResBoNative");
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -335,8 +341,8 @@ public class MainActivity extends Activity {
     }
 
     private void showUrlDialog() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String current = prefs.getString(KEY_URL, BuildConfig.BASE_URL);
+        SharedPreferences prefs = getSharedPreferences(Prefs.FILE, Context.MODE_PRIVATE);
+        String current = prefs.getString(Prefs.KEY_URL, BuildConfig.BASE_URL);
 
         EditText input = new EditText(this);
         input.setText(current);
@@ -354,7 +360,7 @@ public class MainActivity extends Activity {
             .setPositiveButton("Connetti", (d, w) -> {
                 String url = input.getText().toString().trim().replaceAll("/$", "");
                 if (!url.isEmpty()) {
-                    prefs.edit().putString(KEY_URL, url).apply();
+                    prefs.edit().putString(Prefs.KEY_URL, url).apply();
                     webView.stopLoading();
                     loadUrl(url);
                 }

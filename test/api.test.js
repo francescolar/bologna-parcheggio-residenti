@@ -4,7 +4,7 @@ const test   = require('node:test');
 const assert = require('node:assert/strict');
 const zlib   = require('node:zlib');
 const http   = require('node:http');
-const { app, BUILD_ID, _setCache } = require('../server');
+const { app, BUILD_ID, _setCache, _resetDebugAttempts } = require('../server');
 
 let server, base;
 test.before(async () => {
@@ -66,4 +66,37 @@ test('/api/streets è compresso con gzip quando richiesto', async () => {
     }).on('error', reject);
   });
   assert.equal(JSON.parse(body).streets.length, 200);
+});
+
+const unlock = password => fetch(`${base}/api/debug/unlock`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+});
+
+test('debug: senza DEBUG_PASSWORD sul server lo sblocco è disattivato (404)', async () => {
+  delete process.env.DEBUG_PASSWORD;
+  _resetDebugAttempts();
+  assert.equal((await unlock('qualsiasi')).status, 404);
+});
+
+test('debug: password errata → 401, corretta → 200', async () => {
+  process.env.DEBUG_PASSWORD = 'segreto-di-prova';
+  _resetDebugAttempts();
+  try {
+    assert.equal((await unlock('sbagliata')).status, 401);
+    assert.equal((await unlock('')).status, 401);
+    const ok = await unlock('segreto-di-prova');
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await ok.json(), { ok: true });
+  } finally { delete process.env.DEBUG_PASSWORD; }
+});
+
+test('debug: troppi tentativi in un minuto → 429 anche con la password giusta', async () => {
+  process.env.DEBUG_PASSWORD = 'segreto-di-prova';
+  _resetDebugAttempts();
+  try {
+    for (let i = 0; i < 10; i++) await unlock('sbagliata');
+    const r = await unlock('segreto-di-prova');
+    assert.equal(r.status, 429);
+    assert.equal(r.headers.get('retry-after'), '60');
+  } finally { delete process.env.DEBUG_PASSWORD; _resetDebugAttempts(); }
 });

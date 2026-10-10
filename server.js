@@ -575,6 +575,27 @@ app.use(express.static(PUBLIC_DIR, {
 // Healthcheck: risponde subito anche mentre i dati sono ancora in caricamento
 app.get('/healthz', (req, res) => res.json({ ok: true, ready: !!memCache, build: BUILD_ID }));
 
+// ── DEBUG: sblocco con password ──────────────────────────────────────────────
+// La password sta nella variabile d'ambiente DEBUG_PASSWORD (Coolify). Se non è impostata il debug
+// è disattivato. Il server verifica solo la password: la funzione (posizione simulata) è tutta
+// nel client, quindi è un blocco di comodo dell'interfaccia, non una protezione di dati.
+const debugAttempts = [];                 // istanti dei tentativi nell'ultimo minuto
+app.post('/api/debug/unlock', express.json({ limit: '1kb' }), (req, res) => {
+  const expected = process.env.DEBUG_PASSWORD;
+  if (!expected) return res.status(404).json({ error: 'Debug non abilitato su questo server' });
+
+  const now = Date.now();
+  while (debugAttempts.length && now - debugAttempts[0] > 60_000) debugAttempts.shift();
+  if (debugAttempts.length >= 10) return res.status(429).set('Retry-After', '60').json({ error: 'Troppi tentativi, riprova tra un minuto' });
+  debugAttempts.push(now);
+
+  const digest = v => crypto.createHash('sha256').update(String(v ?? '')).digest();
+  if (!crypto.timingSafeEqual(digest(req.body?.password), digest(expected))) {
+    return res.status(401).json({ error: 'Password errata' });
+  }
+  res.json({ ok: true });
+});
+
 app.get('/api/streets', async (req, res) => {
   if (!memCache) {
     // Il primo caricamento (Overpass) può durare minuti: non tenere la richiesta aperta
@@ -597,4 +618,5 @@ if (require.main === module) {
 module.exports = {
   app, BUILD_ID, normalizeKey, titleCase, parseCandidates, processStreets,
   _setCache: data => { memCache = data; },
+  _resetDebugAttempts: () => { debugAttempts.length = 0; },
 };

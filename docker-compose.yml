@@ -8,6 +8,10 @@ services:
     volumes:
       # persiste la cache Overpass tra i riavvii/deploy (volume gestito da Docker)
       - parresbo-cache:/app/cache
+    environment:
+      # password per sbloccare la modalità debug (vuota = debug disattivato). Impostarla in Coolify.
+      DEBUG_PASSWORD: ${DEBUG_PASSWORD:-}
+      OVERPASS_CONTACT: ${OVERPASS_CONTACT:-}
     restart: unless-stopped
 
 volumes:

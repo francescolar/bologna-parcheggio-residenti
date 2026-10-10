@@ -68,3 +68,24 @@ test('navigationUrl: Android usa geo:, iOS Apple Maps, altrimenti Google Maps', 
   assert.match(Geo.navigationUrl(44.49, 11.34, 'x', 'iPhone'), /^https:\/\/maps\.apple\.com\/\?daddr=44\.49,11\.34/);
   assert.match(Geo.navigationUrl(44.49, 11.34, 'x', 'Linux x86_64'), /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=44\.49,11\.34/);
 });
+
+test('classify: su una via (entro la soglia) → street, con via e distanza', () => {
+  const r = Geo.classify([A, B], 44.4902, 11.3450);
+  assert.equal(r.kind, 'street');
+  assert.equal(r.street, A);
+  assert.ok(r.distM < Geo.MAX_STREET_M);
+});
+
+test('classify: vicino ma non su una via con zona → nozone (con la via più vicina)', () => {
+  // ~220 m a nord di A, ~170 m a sud di B: oltre la soglia da entrambe
+  const r = Geo.classify([A, B], 44.4920, 11.3450);
+  assert.equal(r.kind, 'nozone');
+  assert.ok(r.nearest.distM > Geo.MAX_STREET_M && r.nearest.distM < Geo.OUTSIDE_M);
+});
+
+test('classify: lontano dalle vie (es. nelle Marche) → outside; nessun dato → outside', () => {
+  const marche = Geo.classify([A, B], 43.6, 13.5);
+  assert.equal(marche.kind, 'outside');
+  assert.ok(marche.nearest.distM > Geo.OUTSIDE_M);
+  assert.equal(Geo.classify([], 44.49, 11.34).kind, 'outside');
+});

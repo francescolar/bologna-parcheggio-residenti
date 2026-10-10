@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9142f"/>
+      <stop offset="1" stop-color="#a50e24"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(256 256) scale(0.68) translate(-280 -265)">
+  <g fill="#fff">
+    <!-- Garisenda (bassa, inclinata) -->
+    <g transform="rotate(-5 205 440)">
+      <rect x="165" y="270" width="80" height="170"/>
+      <path d="M159 270h92v-22h-12v10h-13v-10h-14v10h-13v-10h-14v10h-13v-10h-13z"/>
+    </g>
+    <!-- Asinelli (alta) -->
+    <rect x="292" y="150" width="62" height="290"/>
+    <path d="M284 150h78v-26h-13v12h-10v-12h-14v12h-10v-12h-14v12h-10v-12h-7z"/>
+    <path d="M296 124h50l-25-52z"/>
+    <rect x="130" y="436" width="300" height="22" rx="11"/>
+  </g>
+  <!-- finestre -->
+  <g fill="#b50f26">
+    <rect x="316" y="190" width="14" height="30" rx="7"/>
+    <rect x="316" y="260" width="14" height="30" rx="7"/>
+    <rect x="316" y="330" width="14" height="30" rx="7"/>
+  </g>
+  <!-- badge P -->
+  <circle cx="146" cy="150" r="78" fill="#fff"/>
+  <text x="146" y="188" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="118" fill="#c8102e" text-anchor="middle">P</text>
+  </g>
+</svg>

@@ -66,5 +66,5 @@ RUN gradle assembleDebug --no-daemon 2>&1 | tail -30
 # Copia APK finale in /output (volume mount)
 CMD ["sh", "-c", \
      "mkdir -p /output && \
-      cp app/build/outputs/apk/debug/app-debug.apk /output/parcheggio-bologna.apk && \
-      echo '✓ APK pronto: output/parcheggio-bologna.apk'"]
+      cp app/build/outputs/apk/debug/app-debug.apk /output/parresbo.apk && \
+      echo '✓ APK pronto: output/parresbo.apk'"]

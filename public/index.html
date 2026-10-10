@@ -3,14 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Parcheggio Residenti Bologna – Zone</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <meta name="theme-color" content="#c8102e">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <title>ParResBo – Zone parcheggio residenti Bologna</title>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
 <div id="loading">
-  <h2>Parcheggio Residenti Bologna</h2>
+  <h2>ParResBo</h2>
   <div class="bar-wrap"><div class="bar-fill" id="bar"></div></div>
   <div id="prog-text">Avvio…</div>
 </div>
@@ -40,7 +44,7 @@
   <ul id="unmatched-list"></ul>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

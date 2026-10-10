@@ -1,6 +1,7 @@
 'use strict';
 
-const express  = require('express');
+const express     = require('express');
+const compression = require('compression');
 const fs       = require('fs');
 const path     = require('path');
 
@@ -12,6 +13,8 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.ru/api/interpreter',
 ];
+// Overpass chiede di identificarsi: impostare OVERPASS_CONTACT (email o URL) in produzione
+const OVERPASS_USER_AGENT = `parresbo/1.0 (${process.env.OVERPASS_CONTACT ?? 'https://github.com/francescolar/bologna-parcheggio-residenti'})`;
 const CACHE_DIR    = path.join(__dirname, 'cache');
 const CACHE_FILE   = path.join(CACHE_DIR, 'osm-ways.json');
 const CACHE_META   = path.join(CACHE_DIR, 'osm-ways.meta.json');
@@ -223,7 +226,7 @@ async function overpassFetch(query, label) {
     const body = new URLSearchParams({ data: query });
     const r = await fetch(endpoint, {
       method: 'POST', body,
-      headers: { 'User-Agent': 'bologna-parcheggio-residenti/1.0 (laruffafrancesco1@gmail.com)' },
+      headers: { 'User-Agent': OVERPASS_USER_AGENT },
     });
     if (!r.ok) {
       const txt = await r.text();
@@ -517,24 +520,41 @@ async function getData() {
     memCache = processStreets(records, osmWays);
     return memCache;
   })();
+  // Se il caricamento fallisce si deve poter riprovare alla richiesta successiva
+  loadingPromise.catch(() => { loadingPromise = null; });
   return loadingPromise;
 }
 
 // ── SERVER ───────────────────────────────────────────────────────────────────
+app.use(compression());
+
+// Leaflet servito in locale (niente CDN → l'app funziona anche offline via service worker)
+app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet', 'dist')));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Healthcheck: risponde subito anche mentre i dati sono ancora in caricamento
+app.get('/healthz', (req, res) => res.json({ ok: true, ready: !!memCache }));
+
 app.get('/api/streets', async (req, res) => {
-  try {
-    res.json(await getData());
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+  if (!memCache) {
+    // Il primo caricamento (Overpass) può durare minuti: non tenere la richiesta aperta
+    // (i reverse proxy andrebbero in timeout), il client riprova.
+    getData().catch(err => console.error('Caricamento dati fallito:', err.message));
+    return res.status(503).set('Retry-After', '5').json({ loading: true });
   }
+  res.json(memCache);
 });
 
 const PORT = process.env.PORT ?? 3000;
-app.listen(PORT, () => {
-  console.log(`\nServer avviato → http://localhost:${PORT}\n`);
-  // Precarica i dati all'avvio
-  getData().catch(console.error);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\nServer avviato → http://localhost:${PORT}\n`);
+    // Precarica i dati all'avvio
+    getData().catch(err => console.error('Caricamento dati fallito:', err.message));
+  });
+}
+
+module.exports = {
+  app, normalizeKey, titleCase, parseCandidates, processStreets,
+  _setCache: data => { memCache = data; },
+};

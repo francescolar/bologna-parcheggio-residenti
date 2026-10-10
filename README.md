@@ -1,6 +1,6 @@
-# Bologna – parcheggio residenti
+# ParResBo
 
-Mappa delle zone di sosta riservata ai residenti di Bologna. Ogni via dello stradario comunale viene colorata in base alla sua zona; si può impostare la propria zona, nascondere le altre e vedere la propria posizione.
+**Par**cheggio **Res**identi **Bo**logna – mappa delle zone di sosta riservata ai residenti di Bologna. Ogni via dello stradario comunale viene colorata in base alla sua zona; si può impostare la propria zona, nascondere le altre e vedere la propria posizione.
 
 ## Come funziona
 
@@ -23,6 +23,28 @@ docker compose up -d --build
 ```
 
 La cartella `cache/` è montata come volume, quindi sopravvive ai riavvii. Al primo avvio (o a cache scaduta) il download da Overpass può richiedere diversi minuti.
+
+## Test
+
+```sh
+npm test    # node:test, nessuna rete: matching, API (503 in caricamento, gzip, healthcheck), PWA (manifest, icone, service worker)
+```
+
+## Domini
+
+- Web / PWA: `parresbo.laruffa.dev`
+- App Android (WebView che punta solo a questo dominio): `parresbo-app.laruffa.dev`
+
+Sono due domini sullo stesso servizio Coolify: l'header `Host` permette di distinguere (es. nei log) chi arriva da web e chi dall'app.
+
+## Variabili d'ambiente
+
+- `PORT` – porta HTTP (default 3000)
+- `OVERPASS_CONTACT` – email o URL inserito nello User-Agent verso Overpass (default: URL del repo)
+
+## Deploy (Coolify)
+
+Build pack **Dockerfile**, porta 3000, storage persistente su `/app/cache`, dominio con HTTPS. Healthcheck: `GET /healthz` (risponde subito; `ready:true` a dati caricati). Finché il primo download non è finito `/api/streets` risponde `503` e il client riprova da solo.
 
 ## Stato
 

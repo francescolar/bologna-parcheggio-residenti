@@ -280,11 +280,26 @@ function buildUnmatchedPanel(streets) {
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Il server risponde 503 {loading:true} finché non ha finito il download iniziale (Overpass)
+async function fetchStreets() {
+  for (;;) {
+    const r = await fetch('/api/streets');
+    if (r.status === 503) {
+      setProgress(30, 'Il server sta preparando i dati (solo al primo avvio, può richiedere qualche minuto)…');
+      await sleep(5000);
+      continue;
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r;
+  }
+}
+
 async function main() {
   try {
     setProgress(10, 'Caricamento dati dal server…');
-    const r = await fetch('/api/streets');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const r = await fetchStreets();
     setProgress(70, 'Rendering mappa…');
     const data = await r.json();
     if (data.error) throw new Error(data.error);
@@ -295,6 +310,10 @@ async function main() {
     $('prog-text').textContent = 'Errore: ' + err.message;
     console.error(err);
   }
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(err => console.warn('Service worker non registrato:', err));
 }
 
 main();

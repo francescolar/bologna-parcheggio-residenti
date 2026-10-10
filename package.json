@@ -1,13 +1,16 @@
 {
-  "name": "bologna-parcheggio-residenti",
+  "name": "parresbo",
   "version": "1.0.0",
-  "description": "Mappa zone parcheggio residenti Bologna",
+  "description": "ParResBo – mappa delle zone parcheggio residenti di Bologna",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test test/"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "compression": "^1.8.2",
+    "express": "^4.19.2",
+    "leaflet": "^1.9.4"
   }
 }

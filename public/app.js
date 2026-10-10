@@ -25,9 +25,9 @@ let locationMarker  = null;
 
 // ── MAPPA ────────────────────────────────────────────────────────────────────
 const map = L.map('map').setView([44.4949, 11.3426], 13);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-  subdomains: 'abcd', maxZoom: 19,
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19,
 }).addTo(map);
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────

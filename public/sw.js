@@ -2,7 +2,7 @@
 
 // Service worker: app shell in cache (stale-while-revalidate) + ultimo /api/streets buono
 // come fallback offline (network-first). Incrementare CACHE a ogni cambio di strategia.
-const CACHE = 'parresbo-v2';
+const CACHE = 'parresbo-v3';
 const SHELL = [
   '/', '/style.css', '/app.js', '/manifest.webmanifest',
   '/vendor/leaflet/leaflet.css', '/vendor/leaflet/leaflet.js',

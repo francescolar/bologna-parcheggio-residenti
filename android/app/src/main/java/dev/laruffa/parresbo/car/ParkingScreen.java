@@ -179,14 +179,13 @@ public class ParkingScreen extends Screen implements DefaultLifecycleObserver, L
         }
         ParkingData.Nearest here = where.nearest;
 
-        String zones = join(here.street.zones);
         if (here.street.inZone(zone)) {
-            return base(here.street.label + "\nZona " + zones + " · la tua è " + zone + "\nVerifica la segnaletica.", "SÌ, puoi parcheggiare qui")
+            return base(here.street.label + "\n" + zoneText(here.street.zones) + " · verifica la segnaletica", "SÌ, puoi parcheggiare qui")
                 .setIcon(icon(R.drawable.ic_car_yes, CarColor.GREEN))
                 .setActionStrip(zoneStrip).build();
         }
 
-        MessageTemplate.Builder b = base(here.street.label + "\nZona " + zones + " · la tua è " + zone + "\nVerifica la segnaletica.", "NO! Non è la tua zona")
+        MessageTemplate.Builder b = base(here.street.label + "\n" + zoneText(here.street.zones) + " · la tua è " + zone, "NO! Non è la tua zona")
             .setIcon(icon(R.drawable.ic_car_no, CarColor.RED))
             .setActionStrip(zoneStrip);
         ParkingData.Nearest spot = data.nearest(location.getLatitude(), location.getLongitude(), zone);
@@ -215,6 +214,11 @@ public class ParkingScreen extends Screen implements DefaultLifecycleObserver, L
 
     private CarIcon icon(int res, CarColor tint) {
         return new CarIcon.Builder(IconCompat.createWithResource(getCarContext(), res)).setTint(tint).build();
+    }
+
+    // Il messaggio sull'auto mostra al massimo due righe: la seconda deve restare breve
+    private static String zoneText(String[] zones) {
+        return (zones.length > 1 ? "Zone " : "Zona ") + join(zones);
     }
 
     private static String join(String[] zones) {

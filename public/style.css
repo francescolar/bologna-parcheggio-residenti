@@ -233,3 +233,5 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; ov
   width: 100%; margin-top: 8px; padding: 13px; font-size: 16px; font-weight: 700; color: white;
   background: #c8102e; border: none; border-radius: 12px; cursor: pointer; touch-action: manipulation;
 }
+
+.set-help a { color: #c8102e; }

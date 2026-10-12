@@ -150,6 +150,7 @@ public class MainActivity extends Activity {
             return insets;
         });
 
+        registerBackHandler();
         selectTab(0, false);
         handler.postDelayed(slowRunnable, SLOW_MS);
         loadUrl(baseUrl());
@@ -336,8 +337,8 @@ public class MainActivity extends Activity {
                     }
                     return true;
                 }
-                // Link di attribuzione richiesti dalle licenze: nel browser esterno (solo https, solo su tocco)
-                if (request.hasGesture() && "https".equals(uri.getScheme()) && isAttributionHost(uri.getHost())) {
+                // Attribuzioni richieste dalle licenze e informativa privacy: nel browser esterno (solo https, solo su tocco)
+                if (request.hasGesture() && "https".equals(uri.getScheme()) && isExternalLink(uri)) {
                     try {
                         startActivity(new Intent(Intent.ACTION_VIEW, uri));
                     } catch (ActivityNotFoundException ignored) { }
@@ -374,12 +375,15 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** Domini dei link di attribuzione (OpenStreetMap, Leaflet): gli unici link esterni consentiti. */
-    private static boolean isAttributionHost(String host) {
-        if (host == null) return false;
-        host = host.toLowerCase();
-        return host.equals("openstreetmap.org") || host.endsWith(".openstreetmap.org")
-            || host.equals("leafletjs.com") || host.endsWith(".leafletjs.com");
+    /** Link che si aprono nel browser esterno: attribuzioni delle licenze e informativa privacy. */
+    private boolean isExternalLink(Uri uri) {
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        for (String d : new String[]{"openstreetmap.org", "leafletjs.com", "creativecommons.org", "opendata.comune.bologna.it"}) {
+            if (host.equals(d) || host.endsWith("." + d)) return true;
+        }
+        String own = Uri.parse(baseUrl()).getHost();
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        return own != null && host.equalsIgnoreCase(own) && path.startsWith("/privacy");
     }
 
     private void loadUrl(String url) {
@@ -426,10 +430,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Dalle impostazioni si torna alla mappa; dalla mappa si esce. */
+    private void handleBack() {
+        if (currentTab != 0) selectTab(0, true);
+        else finish();
+    }
+
+    // Android 13+: la gestione di "Indietro" passa dal dispatcher (con target 36 onBackPressed non arriva più)
+    private void registerBackHandler() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
+        }
+    }
+
     @Override
-    public void onBackPressed() {
-        if (currentTab != 0) selectTab(0, true);   // dalle impostazioni si torna alla mappa
-        else super.onBackPressed();
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {   // Android 12 e precedenti
+        handleBack();
     }
 
     private int dp(int dp) {

@@ -329,7 +329,7 @@ function showLocateResult(html, type) {
 
 // ── AVVISO LEGALE (primo avvio) ───────────────────────────────────────────────
 // Cambiare DISCLAIMER_KEY se il testo cambia in modo sostanziale: l'avviso viene mostrato di nuovo.
-const DISCLAIMER_KEY = 'disclaimerV1';
+const DISCLAIMER_KEY = 'disclaimerV2';
 const disclaimerAccepted = () =>
   localStorage.getItem(DISCLAIMER_KEY) === '1' || window.ParResBoNative?.isDisclaimerAccepted?.() === true;
 
@@ -344,6 +344,7 @@ function showDisclaimer() {
          GPS può avere errori.</p>
       <p>Le risposte dell’app sono solo un aiuto: <b>fa sempre fede la segnaletica stradale</b>.
          L’autore non risponde di multe, sanzioni o altri danni derivanti dall’uso dell’app.</p>
+      <p><b>Non usare l’app mentre guidi</b>: fermati in un luogo sicuro.</p>
       <button id="disclaimer-ok">Ho capito</button>
     </div>`;
   el.style.display = 'flex';
@@ -402,8 +403,10 @@ function buildSettings(zones, stats, streets) {
     </section>
     <section>
       <h3>Informazioni</h3>
-      <p class="set-help">Zone e strade: open data del Comune di Bologna.<br>
-        Mappa e geometrie: © OpenStreetMap contributors.<br>
+      <p class="set-help">Zone e strade: <a href="https://opendata.comune.bologna.it" target="_blank" rel="noopener">open data del Comune di Bologna</a>,
+        licenza <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, elaborati da ParResBo.<br>
+        Mappa e tracciati: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.<br>
+        <a href="/privacy" target="_blank" rel="noopener">Informativa sulla privacy</a><br>
         <span id="set-version">Versione: <b>${PAGE_BUILD || '–'}</b></span>${PAGE_BUILD_TIME ? ` · ${fmtBuildTime(PAGE_BUILD_TIME)}` : ''}${APP_VERSION ? `<br>App Android: <b>${APP_VERSION}</b>` : ''}</p>
       <p id="set-update-status" class="set-status"></p>
       <div id="set-debug"></div>

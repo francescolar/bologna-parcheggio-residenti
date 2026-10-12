@@ -5,3 +5,9 @@ android/**/build/
 android/local.properties
 *.apk
 .idea/
+
+*.aab
+dist/
+*.jks
+*.keystore
+signing.properties

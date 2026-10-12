@@ -8,17 +8,20 @@ import androidx.car.app.Screen;
 import androidx.car.app.Session;
 import androidx.car.app.validation.HostValidator;
 
+import dev.laruffa.parresbo.R;
+
 /** Punto d'ingresso per Android Auto (categoria "parcheggio" della Car App Library). */
 public class ParResBoCarService extends CarAppService {
 
     @NonNull
     @Override
     public HostValidator createHostValidator() {
-        // TODO prima della pubblicazione su Play: sostituire con l'elenco degli host Google ammessi
-        // (HostValidator.Builder + addAllowedHosts). Per i test via sideload/DHU serve ALLOW_ALL.
+        // Build di sviluppo (sideload, Desktop Head Unit): qualunque host. Release: solo gli host Google.
         boolean debuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         if (debuggable) return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR;
-        throw new IllegalStateException("Configurare l'elenco degli host ammessi per la build release");
+        return new HostValidator.Builder(getApplicationContext())
+            .addAllowedHosts(R.array.car_hosts_allowlist)
+            .build();
     }
 
     @NonNull

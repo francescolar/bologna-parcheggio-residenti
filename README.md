@@ -58,5 +58,9 @@ Nell'APK c'è anche un'app per Android Auto (`android/app/src/main/java/dev/laru
 Prima di pubblicare su Google Play: sostituire `ALLOW_ALL_HOSTS_VALIDATOR` in `ParResBoCarService` con l'elenco degli host ammessi.
 
 ### Provarla
+Guida passo passo (e script): `docs/android-auto-testing.md`, `scripts/dhu.sh`. In breve:
 1. Sul telefono: Android Auto → Impostazioni → toccare 10 volte "Versione" → menu ⋮ → *Impostazioni sviluppatore* → attivare *Origini sconosciute*.
 2. Con l'auto: collegare il telefono. Senza auto: Desktop Head Unit (SDK Manager → SDK Tools → *Android Auto Desktop Head Unit Emulator*): in Android Auto *Avvia server unità principale*, poi `adb forward tcp:5277 tcp:5277` e avviare `desktop-head-unit`.
+
+## Versione di produzione (Google Play)
+Vedi `docs/play-store.md`: build firmata (`gradle bundleRelease`), chiave di upload fuori dal repo, passaggi della Play Console, Android Auto, informativa privacy (`/privacy`) e note per i revisori. Materiali per la scheda in `store/`.

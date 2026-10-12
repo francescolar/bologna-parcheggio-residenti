@@ -8,7 +8,7 @@ public final class Prefs {
     public static final String FILE        = "prefs";
     public static final String KEY_URL     = "server_url";   // solo build debug
     private static final String KEY_ZONE   = "my_zone";
-    private static final String KEY_DISCLAIMER = "disclaimer_v1";   // stesso testo di DISCLAIMER_KEY in app.js
+    private static final String KEY_DISCLAIMER = "disclaimer_v2";   // corrisponde a DISCLAIMER_KEY in app.js
 
     private Prefs() {}
 

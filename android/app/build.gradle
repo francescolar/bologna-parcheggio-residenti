@@ -4,12 +4,13 @@ plugins {
 
 android {
     namespace 'dev.laruffa.parresbo'
-    compileSdk 34
+    compileSdk 36
+    buildToolsVersion '36.1.0'
 
     defaultConfig {
         applicationId 'dev.laruffa.parresbo'
         minSdk 24
-        targetSdk 34
+        targetSdk 36   // Google Play (dal 31/08/2026) richiede API 36 per nuove app e aggiornamenti
         versionCode 1
         versionName '1.0'
         buildConfigField 'String', 'BASE_URL', '"https://parresbo-app.laruffa.dev"'
@@ -19,9 +20,31 @@ android {
         buildConfig true
     }
 
+    // Firma di upload per Google Play: le credenziali stanno FUORI dal repo
+    // (~/.config/parresbo-signing/signing.properties, oppure il file indicato da PARRESBO_SIGNING).
+    def signingFile = file(System.getenv('PARRESBO_SIGNING') ?: "${System.getProperty('user.home')}/.config/parresbo-signing/signing.properties")
+    def signing = new Properties()
+    if (signingFile.exists()) signingFile.withInputStream { signing.load(it) }
+
+    signingConfigs {
+        release {
+            if (signingFile.exists()) {
+                storeFile file(signing.getProperty('storeFile'))
+                storePassword signing.getProperty('storePassword')
+                keyAlias signing.getProperty('keyAlias')
+                keyPassword signing.getProperty('keyPassword')
+            }
+        }
+    }
+
     buildTypes {
         debug {
             debuggable true
+        }
+        release {
+            debuggable false
+            minifyEnabled false     // codice aperto: l'offuscamento non serve e non è provabile senza un dispositivo
+            if (signingFile.exists()) signingConfig signingConfigs.release
         }
     }
 

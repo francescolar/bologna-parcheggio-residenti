@@ -566,6 +566,7 @@ app.get('/sw.js', (req, res) =>
   res.set('Cache-Control', 'no-cache').type('application/javascript').send(SW_JS));
 
 app.use(express.static(PUBLIC_DIR, {
+  extensions: ['html'],    // /privacy → privacy.html
   setHeaders(res, file) {
     // Codice dell'app: sempre da riconvalidare (ETag). Il resto (icone) può stare in cache.
     if (/\.(html|js|css|webmanifest)$/.test(file)) res.set('Cache-Control', 'no-cache');

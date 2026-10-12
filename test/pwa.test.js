@@ -119,3 +119,14 @@ test('i file con ?v=… vengono serviti (il parametro è solo per invalidare le 
   assert.equal(r.status, 200);
   assert.match(await r.text(), /checkBuild/);
 });
+
+test('/privacy serve l’informativa (richiesta da Google Play) senza bisogno dell’estensione', async () => {
+  for (const p of ['/privacy', '/privacy.html']) {
+    const r = await fetch(base + p);
+    assert.equal(r.status, 200, p);
+    const t = await r.text();
+    assert.match(t, /Informativa sulla privacy/);
+    assert.match(t, /resta sul tuo dispositivo/);
+    assert.match(t, /CC BY 4\.0/);
+  }
+});

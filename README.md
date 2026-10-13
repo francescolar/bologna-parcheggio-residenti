@@ -8,6 +8,7 @@
 <p align="center">
   <img alt="Node.js" src="https://img.shields.io/badge/node-%E2%89%A518-339933?logo=nodedotjs&logoColor=white">
   <img alt="Android" src="https://img.shields.io/badge/android-WebView%20%2B%20Android%20Auto-3DDC84?logo=android&logoColor=white">
+  <img alt="Licenza" src="https://img.shields.io/badge/licenza-MIT-green">
   <img alt="Dati" src="https://img.shields.io/badge/dati-CC%20BY%204.0%20%2B%20ODbL-blue">
 </p>
 
@@ -115,6 +116,10 @@ cd android && gradle testDebugUnitTest    # Java: logica per Android Auto
 ## Contribuire
 
 Segnalazioni e pull request sono benvenute. Se trovi una strada sbagliata o mancante, apri una [issue](https://github.com/francescolar/bologna-parcheggio-residenti/issues) indicando via e zona. Prima di una PR esegui `npm test`.
+
+## Licenza
+
+Il codice è rilasciato con licenza [MIT](LICENSE). I dati hanno le licenze indicate qui sotto.
 
 ## Dati e crediti
 

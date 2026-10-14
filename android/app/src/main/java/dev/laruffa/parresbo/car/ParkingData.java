@@ -8,8 +8,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -66,10 +68,73 @@ public final class ParkingData {
         }
     }
 
+    /** Lato di una cella dell'indice in latitudine (~220 m). */
+    private static final double CELL_DEG = 0.002;
+
+    private static final class Seg {
+        final Street street;
+        final double aLat, aLng, bLat, bLng;
+
+        Seg(Street street, double aLat, double aLng, double bLat, double bLng) {
+            this.street = street;
+            this.aLat = aLat;
+            this.aLng = aLng;
+            this.bLat = bLat;
+            this.bLng = bLng;
+        }
+    }
+
     private final List<Street> streets;
+
+    // Indice a griglia dei segmenti (come in public/geo.js): la ricerca guarda solo le celle attorno al punto.
+    private final Map<Long, List<Seg>> cells = new HashMap<>();
+    private int segCount;
+    private int cols, rows;
+    private double minLat, minLng, cellLng;
 
     private ParkingData(List<Street> streets) {
         this.streets = streets;
+        buildIndex();
+    }
+
+    private void buildIndex() {
+        List<Seg> segs = new ArrayList<>();
+        double loLat = Double.POSITIVE_INFINITY, hiLat = Double.NEGATIVE_INFINITY;
+        double loLng = Double.POSITIVE_INFINITY, hiLng = Double.NEGATIVE_INFINITY;
+        for (Street s : streets) {
+            for (double[][] line : s.lines) {
+                int last = line.length == 1 ? 1 : line.length - 1;   // linea di un solo punto = segmento nullo
+                for (int i = 0; i < last; i++) {
+                    double[] a = line[i], b = line[Math.min(i + 1, line.length - 1)];
+                    segs.add(new Seg(s, a[0], a[1], b[0], b[1]));
+                    loLat = Math.min(loLat, Math.min(a[0], b[0]));
+                    hiLat = Math.max(hiLat, Math.max(a[0], b[0]));
+                    loLng = Math.min(loLng, Math.min(a[1], b[1]));
+                    hiLng = Math.max(hiLng, Math.max(a[1], b[1]));
+                }
+            }
+        }
+        segCount = segs.size();
+        if (segCount == 0) return;
+        minLat = loLat;
+        minLng = loLng;
+        cellLng = CELL_DEG / Math.cos(Math.toRadians((loLat + hiLat) / 2));   // celle ~quadrate in metri
+        cols = (int) Math.floor((hiLng - loLng) / cellLng) + 1;
+        rows = (int) Math.floor((hiLat - loLat) / CELL_DEG) + 1;
+        for (Seg g : segs) {
+            int x0 = (int) Math.floor((Math.min(g.aLng, g.bLng) - minLng) / cellLng);
+            int x1 = (int) Math.floor((Math.max(g.aLng, g.bLng) - minLng) / cellLng);
+            int y0 = (int) Math.floor((Math.min(g.aLat, g.bLat) - minLat) / CELL_DEG);
+            int y1 = (int) Math.floor((Math.max(g.aLat, g.bLat) - minLat) / CELL_DEG);
+            for (int y = y0; y <= y1; y++) {
+                for (int x = x0; x <= x1; x++) {
+                    long key = (long) y * cols + x;
+                    List<Seg> cell = cells.get(key);
+                    if (cell == null) cells.put(key, cell = new ArrayList<>());
+                    cell.add(g);
+                }
+            }
+        }
     }
 
     public int size() {
@@ -132,19 +197,41 @@ public final class ParkingData {
 
     /** Via più vicina a (lat, lng). Con {@code zone} != null considera solo le vie di quella zona. */
     public Nearest nearest(double lat, double lng, String zone) {
-        Nearest best = null;
-        for (Street s : streets) {
-            if (zone != null && !s.inZone(zone)) continue;
-            for (double[][] line : s.lines) {
-                int last = line.length == 1 ? 1 : line.length - 1;   // linea di un solo punto = segmento nullo
-                for (int i = 0; i < last; i++) {
-                    double[] a = line[i], b = line[Math.min(i + 1, line.length - 1)];
-                    double[] c = closestOnSegment(lat, lng, a[0], a[1], b[0], b[1]);   // {distM, lat, lng}
-                    if (best == null || c[0] < best.distM) best = new Nearest(s, c[0], c[1], c[2]);
+        if (segCount == 0) return null;
+        int cx = (int) Math.floor((lng - minLng) / cellLng);
+        int cy = (int) Math.floor((lat - minLat) / CELL_DEG);
+        // Un segmento non ancora visto dopo l'anello r dista almeno r celle: da qui il criterio di stop.
+        double minCellM = Math.min(CELL_DEG * M_PER_DEG_LAT,
+                cellLng * Math.cos(Math.toRadians(lat)) * M_PER_DEG_LNG_AT_EQUATOR);
+        // Gli anelli prima di r0 non toccano la griglia (punto lontano dai dati): si salta direttamente a r0.
+        int r0 = Math.max(Math.max(0, -cx), Math.max(cx - (cols - 1), Math.max(-cy, cy - (rows - 1))));
+        int rMax = r0 + Math.max(cols, rows);
+
+        Nearest[] best = new Nearest[1];
+        for (int r = r0; r <= rMax; r++) {
+            int xa = Math.max(cx - r, 0), xb = Math.min(cx + r, cols - 1);
+            int ya = Math.max(cy - r, 0), yb = Math.min(cy + r, rows - 1);
+            for (int y = ya; y <= yb; y++) {
+                if (y == cy - r || y == cy + r) {
+                    for (int x = xa; x <= xb; x++) scan(x, y, lat, lng, zone, best);
+                } else {
+                    if (cx - r >= 0) scan(cx - r, y, lat, lng, zone, best);
+                    if (cx + r < cols) scan(cx + r, y, lat, lng, zone, best);
                 }
             }
+            if (best[0] != null && best[0].distM <= r * minCellM) break;
         }
-        return best;
+        return best[0];
+    }
+
+    private void scan(int x, int y, double lat, double lng, String zone, Nearest[] best) {
+        List<Seg> cell = cells.get((long) y * cols + x);
+        if (cell == null) return;
+        for (Seg g : cell) {
+            if (zone != null && !g.street.inZone(zone)) continue;
+            double[] c = closestOnSegment(lat, lng, g.aLat, g.aLng, g.bLat, g.bLng);   // {distM, lat, lng}
+            if (best[0] == null || c[0] < best[0].distM) best[0] = new Nearest(g.street, c[0], c[1], c[2]);
+        }
     }
 
     /** Dove sei rispetto ai dati: su una via con zona, vicino ma senza zona, oppure fuori zona (come Geo.classify). */

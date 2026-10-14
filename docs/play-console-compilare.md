@@ -29,6 +29,8 @@ Posso parcheggiare qui? Le zone residenti di Bologna, con risposta SÌ o NO!
 
 **Descrizione completa** (max 4000):
 ```
+APP NON UFFICIALE: ParResBo non è un'app del Comune di Bologna né di alcun ente governativo e non rappresenta nessuna pubblica amministrazione. È un progetto personale e indipendente.
+
 ParResBo (Parcheggio Residenti Bologna) risponde a una domanda sola: posso parcheggiare qui?
 
 Scegli la tua zona di residenza, tocca "Posso parcheggiare qui?" e l'app ti dice in grande SÌ oppure NO! in base a dove ti trovi. Se la risposta è NO!, ti propone il parcheggio più vicino riservato alla tua zona e avvia la navigazione con l'app di mappe che preferisci. Se sei lontano da qualsiasi zona, te lo dice senza inventare risposte.
@@ -45,10 +47,14 @@ PRIVACY
 La tua posizione resta sul tuo dispositivo: serve solo a trovare la strada più vicina e non viene inviata a nessuno.
 
 AVVISO IMPORTANTE
-ParResBo è un progetto personale e non commerciale, senza alcun legame con il Comune di Bologna. I dati possono essere incompleti o non aggiornati e il GPS può sbagliare: le risposte sono solo un aiuto e fa sempre fede la segnaletica stradale. L'autore non risponde di eventuali sanzioni. Non usare l'app mentre guidi.
+ParResBo non è un'app ufficiale e non ha alcun legame con il Comune di Bologna. I dati possono essere incompleti o non aggiornati e il GPS può sbagliare: le risposte sono solo un aiuto e fa sempre fede la segnaletica stradale. L'autore non risponde di eventuali sanzioni. Non usare l'app mentre guidi.
 
-DATI E CREDITI
-Zone e strade: dati aperti del Comune di Bologna (licenza CC BY 4.0), elaborati da ParResBo. Mappa: © OpenStreetMap contributors.
+FONTI DEI DATI
+Le informazioni sulle zone e sulle strade provengono dalle fonti ufficiali del Comune di Bologna, dati aperti con licenza CC BY 4.0, elaborati da ParResBo:
+• Portale open data: https://opendata.comune.bologna.it
+• Dataset "Stradario generale": https://opendata.comune.bologna.it/explore/dataset/stradario-generale-al-25nov2022/
+Per le regole di sosta ufficiali consulta il sito del Comune di Bologna: https://www.comune.bologna.it
+Mappa e tracciati delle strade: © OpenStreetMap contributors (https://www.openstreetmap.org/copyright).
 ```
 
 **Grafica**

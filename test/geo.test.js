@@ -89,3 +89,45 @@ test('classify: lontano dalle vie (es. nelle Marche) â†’ outside; nessun dato â†
   assert.ok(marche.nearest.distM > Geo.OUTSIDE_M);
   assert.equal(Geo.classify([], 44.49, 11.34).kind, 'outside');
 });
+
+// Riferimento: scansione completa di tutti i segmenti (quello che faceva nearest prima dell'indice).
+function bruteForce(streets, lat, lng, filter) {
+  let best = null;
+  for (const s of streets) {
+    if (!s.matched || !s.polylines.length || (filter && !filter(s))) continue;
+    for (const line of s.polylines) {
+      const last = line.length === 1 ? 1 : line.length - 1;
+      for (let i = 0; i < last; i++) {
+        const a = line[i], b = line[Math.min(i + 1, line.length - 1)];
+        const c = Geo.closestOnSegment(lat, lng, a[0], a[1], b[0], b[1]);
+        if (!best || c.distM < best.distM) best = { street: s, ...c };
+      }
+    }
+  }
+  return best;
+}
+
+test('indice a griglia: stesso risultato della scansione completa (punti dentro, ai bordi e lontani)', () => {
+  let seed = 42;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const streets = [];
+  for (let i = 0; i < 300; i++) {
+    const lat = 44.47 + rnd() * 0.06, lng = 11.30 + rnd() * 0.08;
+    const pts = [[lat, lng]];
+    const n = 1 + Math.floor(rnd() * 6);
+    for (let k = 0; k < n; k++) pts.push([pts[k][0] + (rnd() - 0.5) * 0.004, pts[k][1] + (rnd() - 0.5) * 0.004]);
+    streets.push({ matched: i % 17 !== 0, zones: [String(i % 5)], polylines: [pts] });
+  }
+  streets.push({ matched: true, zones: ['0'], polylines: [[[44.5, 11.30], [44.5, 11.38]]] });   // via lunga: attraversa molte celle
+  const queries = [];
+  for (let i = 0; i < 400; i++) queries.push([44.45 + rnd() * 0.1, 11.27 + rnd() * 0.14]);
+  queries.push([43.6, 13.5], [45.5, 9.2], [44.5, 11.34]);
+  for (const [lat, lng] of queries) {
+    for (const zone of [null, '3', '9']) {
+      const filter = zone && (s => s.zones.includes(zone));
+      const got = Geo.__nearest(streets, lat, lng, filter), want = bruteForce(streets, lat, lng, filter);
+      if (!want) { assert.equal(got, null); continue; }
+      assert.ok(Math.abs(got.distM - want.distM) < 1e-6, `${lat},${lng} zona ${zone}: ${got.distM} vs ${want.distM}`);
+    }
+  }
+});

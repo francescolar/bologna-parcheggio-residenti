@@ -201,13 +201,24 @@ function setupLocateBtn() {
       showLocateResult('Geolocalizzazione non supportata dal browser.', 'neutral');
       return;
     }
+    const t0 = performance.now();
+    const fix = freshFix();
+    if (fix) {   // GPS già caldo: risposta immediata
+      onPosition(fix);
+      debugTiming(`posizione dalla cache (${Math.round(Date.now() - lastFix.t)} ms fa)`, t0);
+      return;
+    }
     btn.disabled = true;
     btn.textContent = 'Ricerca…';
     navigator.geolocation.getCurrentPosition(
       pos => {
         btn.disabled = false;
         btn.innerHTML = LOCATE_LABEL;
+        const tFix = performance.now();
         onPosition(pos);
+        debugTiming(`fix GPS ${Math.round(tFix - t0)} ms`, tFix);
+        gpsWanted = true;
+        startGpsWatch();   // dal prossimo tocco il GPS è già caldo
       },
       err => {
         btn.disabled = false;
@@ -217,6 +228,45 @@ function setupLocateBtn() {
       { enableHighAccuracy: true, timeout: 12000 }
     );
   });
+
+  // Se il permesso c'è già, scalda il GPS subito (senza far comparire richieste all'avvio)
+  navigator.permissions?.query({ name: 'geolocation' }).then(st => {
+    if (st.state === 'granted') { gpsWanted = true; startGpsWatch(); }
+  }).catch(() => {});
+  // Il GPS acceso consuma batteria: solo con l'app in primo piano
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopGpsWatch(); else if (gpsWanted) startGpsWatch();
+  });
+}
+
+// GPS "caldo": un getCurrentPosition ad alta precisione da freddo impiega 1-2 s, quindi mentre l'app
+// è in primo piano teniamo un watchPosition e al tocco usiamo l'ultimo fix se è recente.
+const FIX_MAX_AGE_MS = 5000;
+let lastFix = null;       // { pos, t }
+let gpsWatchId = null;
+let gpsWanted = false;    // l'utente ha già dato il permesso / usato il GPS
+
+function startGpsWatch() {
+  if (gpsWatchId !== null || !navigator.geolocation || document.hidden) return;
+  gpsWatchId = navigator.geolocation.watchPosition(
+    pos => { lastFix = { pos, t: Date.now() }; },
+    () => {},   // gli errori li gestisce getCurrentPosition al tocco
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+  );
+}
+
+function stopGpsWatch() {
+  if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId = null;
+  lastFix = null;
+}
+
+const freshFix = () => lastFix && Date.now() - lastFix.t <= FIX_MAX_AGE_MS ? lastFix.pos : null;
+
+// Tempi dell'ultima risposta, visibili nel pannello debug (t = istante in cui è arrivata la posizione)
+function debugTiming(source, t) {
+  const el = DEBUG && $('debug-timing');
+  if (el) el.textContent = `⏱ ${source}, risposta ${(performance.now() - t).toFixed(1)} ms`;
 }
 
 function onPosition({ coords: { latitude: lat, longitude: lng } }) {
@@ -538,7 +588,8 @@ function setupDebugPanel() {
     <b>DEBUG</b> posizione
     <label><input type="radio" name="posmode" value="gps" checked> GPS reale</label>
     <label><input type="radio" name="posmode" value="sim"> Simulata</label>
-    <div id="debug-hint" style="display:none">Tocca la mappa o trascina il puntino</div>`;
+    <div id="debug-hint" style="display:none">Tocca la mappa o trascina il puntino</div>
+    <div id="debug-timing"></div>`;
   document.body.appendChild(panel);
 
   panel.addEventListener('change', e => {

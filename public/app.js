@@ -205,27 +205,26 @@ function setupLocateBtn() {
     const fix = freshFix();
     if (fix) {   // GPS già caldo: risposta immediata
       onPosition(fix);
-      debugTiming(`posizione dalla cache (${Math.round(Date.now() - lastFix.t)} ms fa)`, t0);
+      debugTiming(`posizione pronta (${Math.round(Date.now() - lastFix.t)} ms fa) ±${Math.round(fix.coords.accuracy)} m`, t0);
       return;
     }
     btn.disabled = true;
     btn.textContent = 'Ricerca…';
-    navigator.geolocation.getCurrentPosition(
-      pos => {
+    getFix(
+      (pos, src) => {
         btn.disabled = false;
         btn.innerHTML = LOCATE_LABEL;
         const tFix = performance.now();
         onPosition(pos);
-        debugTiming(`fix GPS ${Math.round(tFix - t0)} ms`, tFix);
+        debugTiming(`fix ${src} ${Math.round(tFix - t0)} ms ±${Math.round(pos.coords.accuracy)} m`, tFix);
         gpsWanted = true;
-        startGpsWatch();   // dal prossimo tocco il GPS è già caldo
+        startGpsWatch();   // dal prossimo tocco la posizione è già pronta
       },
       err => {
         btn.disabled = false;
         btn.innerHTML = LOCATE_LABEL;
         showLocateResult('Posizione non disponibile: ' + err.message, 'neutral');
-      },
-      { enableHighAccuracy: true, timeout: 12000 }
+      }
     );
   });
 
@@ -239,19 +238,46 @@ function setupLocateBtn() {
   });
 }
 
-// GPS "caldo": un getCurrentPosition ad alta precisione da freddo impiega 1-2 s, quindi mentre l'app
-// è in primo piano teniamo un watchPosition e al tocco usiamo l'ultimo fix se è recente.
+// Posizione veloce: il GPS puro, da freddo o al chiuso, può metterci 10-15 s. Si chiedono quindi due fix insieme:
+// quello "di rete" (Wi-Fi e celle, di solito sotto il secondo) e quello GPS. Si risponde col primo abbastanza
+// preciso; se la rete è troppo approssimativa si aspetta il GPS, e se questo fallisce si ripiega sulla rete.
+const GOOD_ACCURACY_M = 50;   // sotto la soglia di 60 m con cui Geo.classify decide "sei su una via"
 const FIX_MAX_AGE_MS = 5000;
+const NET_OPTS = { enableHighAccuracy: false, maximumAge: 30000, timeout: 8000 };
+const GPS_OPTS = { enableHighAccuracy: true, timeout: 15000 };
+
+function getFix(onFix, onErr) {
+  let done = false, coarse = null, coarseFailed = false, gpsFailed = false, lastErr = null;
+  const settle = (pos, src) => { if (!done) { done = true; onFix(pos, src); } };
+  const giveUp = () => { if (!done) { done = true; onErr(lastErr); } };
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      coarse = pos;
+      if (pos.coords.accuracy <= GOOD_ACCURACY_M || gpsFailed) settle(pos, 'rete');
+    },
+    err => { lastErr = err; coarseFailed = true; if (gpsFailed) giveUp(); },
+    NET_OPTS);
+  navigator.geolocation.getCurrentPosition(
+    pos => settle(pos, 'GPS'),
+    err => {
+      lastErr = err; gpsFailed = true;
+      if (coarse) settle(coarse, 'rete'); else if (coarseFailed) giveUp();
+    },
+    GPS_OPTS);
+}
+
+// Mentre l'app è in primo piano un watchPosition tiene la posizione pronta: al tocco, se l'ultimo fix è
+// recente e preciso, la risposta è immediata. A basso consumo (rete + GPS solo se serve).
 let lastFix = null;       // { pos, t }
 let gpsWatchId = null;
-let gpsWanted = false;    // l'utente ha già dato il permesso / usato il GPS
+let gpsWanted = false;    // l'utente ha già dato il permesso / usato la posizione
 
 function startGpsWatch() {
   if (gpsWatchId !== null || !navigator.geolocation || document.hidden) return;
   gpsWatchId = navigator.geolocation.watchPosition(
     pos => { lastFix = { pos, t: Date.now() }; },
-    () => {},   // gli errori li gestisce getCurrentPosition al tocco
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+    () => {},   // gli errori li gestisce getFix al tocco
+    { enableHighAccuracy: false, maximumAge: 0, timeout: 30000 }
   );
 }
 
@@ -261,7 +287,9 @@ function stopGpsWatch() {
   lastFix = null;
 }
 
-const freshFix = () => lastFix && Date.now() - lastFix.t <= FIX_MAX_AGE_MS ? lastFix.pos : null;
+const freshFix = () =>
+  lastFix && Date.now() - lastFix.t <= FIX_MAX_AGE_MS && lastFix.pos.coords.accuracy <= GOOD_ACCURACY_M
+    ? lastFix.pos : null;
 
 // Tempi dell'ultima risposta, visibili nel pannello debug (t = istante in cui è arrivata la posizione)
 function debugTiming(source, t) {

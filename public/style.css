@@ -218,6 +218,14 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; ov
 .verdict-none { background: rgba(71, 85, 105, .96); }
 .verdict-note { margin-top: 14px; font-size: 12px; opacity: .8; }
 
+/* ── SUGGERIMENTO HOME (iOS) ── */
+#ios-hint {
+  position: fixed; left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); z-index: 1002;
+  padding: 6px 30px 6px 10px; border-radius: 10px; background: white; color: #334155;
+  font-size: 12px; line-height: 1.3; box-shadow: 0 2px 12px rgba(0,0,0,.18);
+}
+#ios-hint .ios-share { vertical-align: -3px; color: #c8102e; }
+
 /* ── AVVISO LEGALE ── */
 #disclaimer {
   position: fixed; inset: 0; z-index: 10000; background: rgba(15, 23, 42, .65);

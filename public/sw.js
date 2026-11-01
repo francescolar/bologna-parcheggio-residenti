@@ -4,7 +4,8 @@
 // aggiornamento in background). Il nome della cache contiene il BUILD_ID: cambia a ogni deploy.
 const CACHE = 'parresbo-__BUILD_ID__';  // il server sostituisce __BUILD_ID__ con l'hash dei file
 const SHELL = [
-  '/', '/style.css?v=__BUILD_ID__', '/app.js?v=__BUILD_ID__', '/geo.js?v=__BUILD_ID__', '/manifest.webmanifest',
+  '/', '/style.css?v=__BUILD_ID__', '/app.js?v=__BUILD_ID__', '/geo.js?v=__BUILD_ID__', '/ios-hint.js?v=__BUILD_ID__',
+  '/manifest.webmanifest',
   '/vendor/leaflet/leaflet.css', '/vendor/leaflet/leaflet.js',
   '/icons/icon.svg', '/icons/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png',
 ];

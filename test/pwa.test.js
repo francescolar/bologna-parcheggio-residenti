@@ -78,9 +78,9 @@ test('il service worker serve app e file statici senza mescolare versioni (rete 
   assert.match(src, /\/api\/streets/);            // dati: cache subito + aggiornamento in background
 });
 
-test('app.js e geo.js sono sintatticamente validi', () => {
+test('app.js, geo.js e ios-hint.js sono sintatticamente validi', () => {
   const vm = require('node:vm');
-  for (const f of ['app.js', 'geo.js', 'sw.js']) {
+  for (const f of ['app.js', 'geo.js', 'ios-hint.js', 'sw.js']) {
     assert.doesNotThrow(() => new vm.Script(fs.readFileSync(path.join(PUBLIC, f), 'utf8'), { filename: f }), f);
   }
 });
@@ -99,7 +99,7 @@ test('versionamento: /version.json, meta build, URL di JS/CSS e service worker p
   const body = await page.text();
   assert.ok(body.includes(`<meta name="build" content="${BUILD_ID}">`));
   assert.ok(body.includes(`<meta name="build-time" content="${info.builtAt}">`));
-  for (const f of ['style.css', 'geo.js', 'app.js']) assert.ok(body.includes(`/${f}?v=${BUILD_ID}`), f);
+  for (const f of ['style.css', 'geo.js', 'ios-hint.js', 'app.js']) assert.ok(body.includes(`/${f}?v=${BUILD_ID}`), f);
   assert.ok(!body.includes('__BUILD_ID__') && !body.includes('__BUILD_TIME__'));
 
   const sw = await (await fetch(`${base}/sw.js`)).text();

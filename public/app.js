@@ -430,9 +430,41 @@ function showDisclaimer() {
     localStorage.setItem(DISCLAIMER_KEY, '1');
     window.ParResBoNative?.acceptDisclaimer?.();   // vale anche per Android Auto
     el.style.display = 'none';
+    showIosHint();
   };
 }
-if (!disclaimerAccepted()) showDisclaimer();
+
+// ── SUGGERIMENTO "AGGIUNGI ALLA HOME" (solo iPhone/iPad, non ancora installata) ─
+const IOS_HINT_KEY = 'iosHintDismissed';
+const SHARE_ICON = '<svg class="ios-share" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const IOS_STEPS = `Tocca <b>Condividi</b> ${SHARE_ICON} e poi <b>Aggiungi alla schermata Home</b>.`;
+
+function iosHintMode(ignoreDismissed) {
+  let dismissed = false;
+  try { dismissed = !ignoreDismissed && localStorage.getItem(IOS_HINT_KEY) === '1'; } catch { /* storage non disponibile */ }
+  return IosHint.hintMode({
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints,
+    standalone: navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches === true,
+    hasNativeBridge: !!window.ParResBoNative,
+    dismissed,
+  });
+}
+
+function showIosHint() {
+  const mode = iosHintMode(false);
+  if (!mode) return;
+  const el = $('ios-hint');
+  el.innerHTML = (mode === 'safari' ? IOS_STEPS : 'Apri questa pagina in <b>Safari</b> per aggiungerla alla Home.') +
+    '<button class="res-close" aria-label="chiudi">✕</button>';
+  el.style.display = 'block';
+  el.querySelector('.res-close').onclick = () => {
+    el.style.display = 'none';
+    try { localStorage.setItem(IOS_HINT_KEY, '1'); } catch { /* storage non disponibile */ }
+  };
+}
+
+if (!disclaimerAccepted()) showDisclaimer(); else showIosHint();
 
 // ── IMPOSTAZIONI ──────────────────────────────────────────────────────────────
 // Vista a pieno schermo dentro la pagina. Nell'app Android la apre la barra nativa
@@ -471,6 +503,10 @@ function buildSettings(zones, stats, streets) {
           </label>`).join('')}
       </div>
     </section>
+    ${iosHintMode(true) === 'safari' ? `<section>
+      <h3>Installa su iPhone</h3>
+      <p class="set-help">${IOS_STEPS}</p>
+    </section>` : ''}
     <section>
       <h3>Dati</h3>
       <p class="set-help">Strade trovate sulla mappa: <b>${stats.matched}/${stats.total}</b> (${Math.round(100 * stats.matched / stats.total)}%)</p>
